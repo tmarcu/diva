@@ -21,6 +21,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const version = "0.0.0"
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "diva",
@@ -29,8 +31,21 @@ var rootCmd = &cobra.Command{
 	RPM content, bundle information, full buildroot, manifests,
 	fullfiles, packs, and more.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		if rootCmdFlags.version {
+			fmt.Printf("diva %s\n", version)
+			os.Exit(0)
+		}
 		cmd.Print(cmd.UsageString())
 	},
+}
+
+var rootCmdFlags = struct {
+	version bool
+}{}
+
+func init() {
+	rootCmd.Flags().BoolVar(&rootCmdFlags.version,
+		"version", false, "Print version information and exit")
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

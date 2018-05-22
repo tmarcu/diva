@@ -83,7 +83,7 @@ release:
 		echo "Release needs to be used from a git repository"; \
 		exit 1; \
 	fi
-	@VERSION=$$(grep -e 'const version' main.go | cut -d '"' -f 2) ; \
+	@VERSION=$$(grep -e 'const version' cmd/root.go | cut -d '"' -f 2) ; \
 	if [ -z "$$VERSION" ]; then \
 		echo "Couldn't extract version number from the source code"; \
 		exit 1; \
