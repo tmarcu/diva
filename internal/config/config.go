@@ -25,6 +25,7 @@ const (
 	defaultConfig = "/usr/share/defaults/diva/config.toml"
 	systemConfig  = "/etc/diva/config.toml"
 	userConfig    = ".config/diva/config.toml" // under $HOME
+	upstreamURL   = "https://download.clearlinux.org"
 )
 
 // mixConfig defines the path and configuration of the mix workspace used by diva
@@ -41,8 +42,9 @@ type pathConfig struct {
 
 // Config struct that defines the layout of the configuration file
 type Config struct {
-	Mixer mixConfig
-	Paths pathConfig
+	Mixer       mixConfig
+	Paths       pathConfig
+	UpstreamURL string
 }
 
 func defaultConf() Config {
@@ -56,6 +58,7 @@ func defaultConf() Config {
 			filepath.Join(ws, "repo"),
 			filepath.Join(ws, "data"),
 		},
+		upstreamURL,
 	}
 }
 
