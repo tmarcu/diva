@@ -60,7 +60,7 @@ lint: gopath
 	--enable=vet \
 	--enable=ineffassign \
 	--enable=gofmt \
-	$${CYCLO_MAX:+--enable=gocyclo --cyclo-over=$${CYCLO_MAX}} \
+	--enable=gocyclo --cyclo-over=15 \
 	--enable=golint \
 	--enable=deadcode \
 	--enable=varcheck \
