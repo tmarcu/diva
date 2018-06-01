@@ -30,21 +30,21 @@ const (
 
 // mixConfig defines the path and configuration of the mix workspace used by diva
 type mixConfig struct {
-	MixWorkSpace string `required:"true"`
+	MixWorkSpace string `toml:"workspace"`
 }
 
 // pathConfig defines paths to various data used by diva
 type pathConfig struct {
-	BundleDefsRepo string
-	LocalRPMRepo   string
-	CacheLocation  string
+	BundleDefsRepo string `toml:"bundle_repository"`
+	LocalRPMRepo   string `toml:"local_rpms"`
+	CacheLocation  string `toml:"cache"`
 }
 
 // Config struct that defines the layout of the configuration file
 type Config struct {
-	Mixer       mixConfig
-	Paths       pathConfig
-	UpstreamURL string
+	Mixer       mixConfig  `toml:"mixer"`
+	Paths       pathConfig `toml:"paths"`
+	UpstreamURL string     `toml:"upstream_url"`
 }
 
 func defaultConf() Config {
