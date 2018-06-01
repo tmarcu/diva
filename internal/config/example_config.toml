@@ -1,9 +1,9 @@
 upstream_url = "https://download.clearlinux.org"
 
 [mixer]
-  workspace = "/home/mrsj/clearlinux/mix"
+  workspace = "/home/user/clearlinux/mix"
 
 [paths]
-  bundle_repository = "/home/mrsj/clearlinux/projects/clr-bundles"
-  local_rpms = "/home/mrsj/clearlinux/repo"
-  cache = "/home/mrsj/clearlinux/data"
+  bundle_repository = "/home/user/clearlinux/projects/clr-bundles"
+  local_rpms = "/home/user/clearlinux/repo"
+  cache = "/home/user/clearlinux/data"
