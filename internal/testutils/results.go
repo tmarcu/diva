@@ -61,3 +61,23 @@ func (r *Results) PrintJSON(w io.Writer) error {
 	_, err = io.WriteString(w, string(resOut))
 	return err
 }
+
+// AddFailure increments the Failed and Total counts and appends the error text
+// to the Failures slice
+func (r *Results) AddFailure(err error) {
+	r.Failed++
+	r.Total++
+	r.Failures = append(r.Failures, err.Error())
+}
+
+// AddPassed increments the Passed and Total counts
+func (r *Results) AddPassed() {
+	r.Passed++
+	r.Total++
+}
+
+// AddSkipped increments the Skipped and Total counts
+func (r *Results) AddSkipped() {
+	r.Skipped++
+	r.Total++
+}
