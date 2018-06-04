@@ -71,6 +71,10 @@ func runPipCheck(cmd *cobra.Command, args []string) {
 	if err != nil {
 		helpers.Fail(err)
 	}
+
+	if results.Failed > 0 {
+		os.Exit(1)
+	}
 }
 
 // PipCheck runs 'pip check' in a chroot at path
