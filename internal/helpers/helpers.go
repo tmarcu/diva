@@ -204,3 +204,9 @@ func RunCommandOutput(cmdname string, args ...string) (*bytes.Buffer, error) {
 	}
 	return &outBuf, nil
 }
+
+// Fail prints the error and exits the program with an error code
+func Fail(err error) {
+	fmt.Fprintf(os.Stderr, "%s: ERROR: %s\n", os.Args[0], err)
+	os.Exit(1)
+}
