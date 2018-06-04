@@ -20,24 +20,45 @@ import (
 	"text/template"
 )
 
+// PFS describes the pass/fail/skip status of an individual test result
+type PFS uint8
+
+// Valid values for PFS
+const (
+	Pass PFS = iota
+	Fail
+	Skip
+)
+
+// Result holds individual test status and information
+type Result struct {
+	Name        string
+	Description string
+	Status      PFS
+	Output      string
+}
+
 // Results holds the results of a test run
 type Results struct {
-	Passed   uint
-	Failed   uint
-	Skipped  uint
-	Total    uint
-	Failures []string
+	Name        string
+	Description string
+	Passed      uint
+	Failed      uint
+	Skipped     uint
+	Total       uint
+	Tests       []Result
 }
 
 const resultTemplate = `
-Total:    {{.Total}}
-Passed:   {{.Passed}}
-Failed:   {{.Failed}}
-Skipped:  {{.Skipped}}
+Test Suite:  {{.Name}}
+             {{.Description}}
+Total:       {{.Total}}
+Passed:      {{.Passed}}
+Failed:      {{.Failed}}
+Skipped:     {{.Skipped}}
 
-{{range $f := .Failures}}
-{{.f}}
-{{end}}
+{{range $f := .Tests}}{{if eq .Status 1}}{{.Name}}	{{.Description}}	{{.Output}}
+{{end}}{{end}}
 `
 
 // Print the Results to the Writer provided using the resultTemplate as the
@@ -62,22 +83,35 @@ func (r *Results) PrintJSON(w io.Writer) error {
 	return err
 }
 
-// AddFailure increments the Failed and Total counts and appends the error text
-// to the Failures slice
-func (r *Results) AddFailure(err error) {
-	r.Failed++
+// Add increments the appropriate counters according to err and skipped
+// arguments and adds a test the result.Tests field.
+func (r *Results) Add(name, description string, err error, skipped bool) {
 	r.Total++
-	r.Failures = append(r.Failures, err.Error())
-}
+	var status PFS
+	var output string
+	switch {
+	case skipped:
+		r.Skipped++
+		status = Skip
+		output = "skipped: "
+		if err != nil {
+			output += err.Error()
+		}
+	case err == nil:
+		r.Passed++
+		status = Pass
+		output = ""
+	default: // err != nil
+		r.Failed++
+		status = Fail
+		output = err.Error()
+	}
 
-// AddPassed increments the Passed and Total counts
-func (r *Results) AddPassed() {
-	r.Passed++
-	r.Total++
-}
-
-// AddSkipped increments the Skipped and Total counts
-func (r *Results) AddSkipped() {
-	r.Skipped++
-	r.Total++
+	t := Result{
+		Name:        name,
+		Description: description,
+		Status:      status,
+		Output:      output,
+	}
+	r.Tests = append(r.Tests, t)
 }
