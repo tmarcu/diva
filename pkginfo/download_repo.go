@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package helpers
+package pkginfo
 
 import (
 	"encoding/xml"
@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/clearlinux/diva/internal/config"
+	"github.com/clearlinux/diva/internal/helpers"
 	"github.com/schollz/progressbar"
 )
 
@@ -34,14 +35,13 @@ var c *config.Config
 // file.  We cannot just look for the filelists file directly because a hash is
 // part of the filename. The repomd.xml file lists this file name so we can
 // construct the url using this value.
-func buildFilelistsURL(workingDir string, version uint) (string, error) {
+func buildFilelistsURL(repo *Repo, workingDir string) (string, error) {
 	// download repomd.xml
 	repomdFile := filepath.Join(workingDir, "repomd.xml")
-	repomdURL := fmt.Sprintf("%s/releases/%d/clear/x86_64/os/repodata/repomd.xml",
-		c.UpstreamURL, version)
+	repomdURL := fmt.Sprintf("%s/repodata/repomd.xml", repo.URI)
 	_, err := os.Stat(repomdFile)
 	if err != nil {
-		err = Download(repomdURL, repomdFile)
+		err = helpers.Download(repomdURL, repomdFile)
 		if err != nil {
 			return "", err
 		}
@@ -83,10 +83,10 @@ func buildFilelistsURL(workingDir string, version uint) (string, error) {
 		}
 	}
 
-	return fmt.Sprintf("%s/releases/%d/clear/x86_64/os/%s", c.UpstreamURL, version, path), nil
+	return fmt.Sprintf("%s/%s", repo.URI, path), nil
 }
 
-func buildPackageURLs(flistsPath string, version uint) ([]string, error) {
+func buildPackageURLs(repo *Repo, flistsPath string) ([]string, error) {
 	// <filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="7436">
 	//   <package ... name="pkgname" arch="x86_64">
 	//     <version ... ver="ver" rel="rel"/>
@@ -118,9 +118,9 @@ func buildPackageURLs(flistsPath string, version uint) ([]string, error) {
 	}
 
 	packages := []string{}
-	baseURL := fmt.Sprintf("%s/releases/%d/clear/x86_64/os/Packages", c.UpstreamURL, version)
+	url := fmt.Sprintf("%s/Packages", repo.URI)
 	for _, p := range v.Packages {
-		rpmURL := fmt.Sprintf("%s/%s-%s-%s.%s.rpm", baseURL, p.Name, p.VR.V, p.VR.R, p.Arch)
+		rpmURL := fmt.Sprintf("%s/%s-%s-%s.%s.rpm", url, p.Name, p.VR.V, p.VR.R, p.Arch)
 		packages = append(packages, rpmURL)
 	}
 
@@ -149,7 +149,7 @@ func downloadAllRPMs(packages []string, workingDir string) error {
 			var dlErr error
 			// do not download again if it already exists
 			if _, dlErr = os.Stat(outFile); dlErr != nil {
-				dlErr = Download(url, outFile)
+				dlErr = helpers.Download(url, outFile)
 			}
 			progressIfTTY(bar)
 			if dlErr != nil {
@@ -161,7 +161,7 @@ func downloadAllRPMs(packages []string, workingDir string) error {
 	}
 
 	fmt.Printf("Downloading %d RPMs using %d workers\n", len(packages), workers)
-	if StdoutIsTTY() {
+	if helpers.StdoutIsTTY() {
 		_ = bar.RenderBlank()
 	}
 
@@ -191,7 +191,7 @@ func downloadAllRPMs(packages []string, workingDir string) error {
 	close(errorCh)
 
 	// print a blank line to clear the progress bar if in a TTY
-	if StdoutIsTTY() {
+	if helpers.StdoutIsTTY() {
 		fmt.Println()
 	} else {
 		fmt.Println("done")
@@ -207,46 +207,73 @@ func downloadAllRPMs(packages []string, workingDir string) error {
 	return nil
 }
 
-// GetUpstreamRepoFiles downloads all RPM packages from the RPM repo at
-// c.UpstreamURL by first paring the repo metadata. These packages are
-// downloaded to the c.CacheLocation/rpms/<version>/packages/ if they do not
-// already exist there.
-func GetUpstreamRepoFiles(version uint) error {
+// GetRepoFiles downloads all RPM packages from the RPM repo at the given
+// baseURL by first parsing the repo metadata. These packages are downloaded to
+// the c.CacheLocation/rpms/<version>/packages/ if they do not already exist
+// there.
+func GetRepoFiles(repo *Repo) (string, error) {
 	var err error
 	c, err = config.ReadConfig("")
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	workingDir := filepath.Join(c.Paths.CacheLocation, "rpms", fmt.Sprint(version))
+	workingDir := filepath.Join(
+		c.Paths.CacheLocation,
+		"rpms",
+		repo.Name,
+		fmt.Sprint(repo.Version),
+		repo.Type,
+	)
 	if err = os.MkdirAll(workingDir, 0755); err != nil {
-		return err
+		return "", err
 	}
 
-	url, err := buildFilelistsURL(workingDir, version)
+	url, err := buildFilelistsURL(repo, workingDir)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	flistsPath := filepath.Join(workingDir, "filelists.xml")
 	// this file can be either gz or xz compressed, use DownloadFile
 	// which will use whatever extraction method is appropriate based
 	// on the file extension.
-	err = DownloadFile(url, flistsPath)
+	err = helpers.DownloadFile(url, flistsPath)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	packages, err := buildPackageURLs(flistsPath, version)
+	packages, err := buildPackageURLs(repo, flistsPath)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return downloadAllRPMs(packages, workingDir)
+	return filepath.Join(workingDir, "packages"), downloadAllRPMs(packages, workingDir)
+}
+
+// GetUpstreamRepoFiles downloads all RPM packages from the RPM repo at
+// c.UpstreamURL by first paring the repo metadata. These packages are
+// downloaded to the c.CacheLocation/rpms/<version>/packages/ if they do not
+// already exist there.
+func GetUpstreamRepoFiles(version uint) (string, error) {
+	var err error
+	c, err = config.ReadConfig("")
+	if err != nil {
+		return "", err
+	}
+	url := fmt.Sprintf("%s/releases/%d/clear/x86_64/os", c.UpstreamURL, version)
+	repo := &Repo{
+		URI:     url,
+		Name:    "clear",
+		Version: version,
+		Type:    "B",
+	}
+
+	return GetRepoFiles(repo)
 }
 
 func progressIfTTY(bar *progressbar.ProgressBar) {
-	if StdoutIsTTY() {
+	if helpers.StdoutIsTTY() {
 		_ = bar.Add(1)
 	}
 }

@@ -1,0 +1,146 @@
+// Copyright © 2018 Intel Corporation
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package pkginfo
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/cavaliercoder/go-rpm"
+	"github.com/gomodule/redigo/redis"
+)
+
+// ImportAllRPMs imports all RPMs from a given repository. It populates the
+// passed repo with all RPMs imported.
+func ImportAllRPMs(repo *Repo) error {
+	var err error
+	var path string
+	if path, err = GetRepoFiles(repo); err != nil {
+		return err
+	}
+
+	if err = loadRepoFromCache(repo, path); err != nil {
+		return err
+	}
+
+	var c redis.Conn
+	if c, err = initRedis(0); err != nil {
+		return err
+	}
+	defer func() {
+		_ = c.Close()
+	}()
+	if err = storeRepoInfoRedis(c, repo); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ImportRPM imports a single RPM named <rpm> from a given repo. It adds the
+// RPM to the passed repo and returns the RPM struct.
+func ImportRPM(repo *Repo, rpm string) (*RPM, error) {
+	var err error
+	// TODO: this is overkill
+	var path string
+	if path, err = GetRepoFiles(repo); err != nil {
+		return nil, err
+	}
+
+	if err = loadRepoFromCache(repo, path); err != nil {
+		return nil, err
+	}
+
+	var c redis.Conn
+	if c, err = initRedis(0); err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = c.Close()
+	}()
+	for _, r := range repo.Packages {
+		if r.Name == rpm {
+			return r, storeRPMInfoRedis(c, repo, r)
+		}
+	}
+
+	return nil, fmt.Errorf("unable to find %s RPM in %s repo", rpm, repo.Name)
+}
+
+func fileFromPackageFile(pkgFI *rpm.FileInfo) *File {
+	var t byte
+	switch mode := pkgFI.Mode(); {
+	case mode.IsRegular():
+		t = byte('F')
+	case pkgFI.IsDir():
+		t = byte('D')
+	case mode&os.ModeSymlink != 0:
+		t = byte('L')
+	default:
+		// unrecognized file type, what do we want to do here?
+		t = byte('F')
+	}
+
+	return &File{
+		Name:           pkgFI.Name(),
+		Type:           t,
+		Size:           uint(pkgFI.Size()),
+		Hash:           "", // TODO
+		SwupdHash:      "", // TODO
+		Permissions:    "", // TODO
+		Owner:          pkgFI.Owner(),
+		Group:          pkgFI.Group(),
+		SymlinkTarget:  "", // TODO
+		CurrentVersion: 0,
+	}
+}
+
+func rpmFromPackage(pkg *rpm.PackageFile) *RPM {
+	rpm := &RPM{
+		Name:         pkg.Name(),
+		Version:      pkg.RPMVersion(),
+		Release:      pkg.Release(),
+		Architecture: pkg.Architecture(),
+		SRPMName:     pkg.SourceRPM(),
+		License:      pkg.License(),
+	}
+
+	for _, d := range pkg.Requires() {
+		rpm.Requires = append(rpm.Requires, d.Name())
+	}
+
+	for _, p := range pkg.Provides() {
+		rpm.Provides = append(rpm.Provides, p.Name())
+	}
+
+	for _, f := range pkg.Files() {
+		rpm.Files = append(rpm.Files, fileFromPackageFile(&f))
+	}
+
+	return rpm
+}
+
+func loadRepoFromCache(repo *Repo, cacheLoc string) error {
+	rpms, err := rpm.OpenPackageFiles(cacheLoc)
+	if err != nil {
+		return err
+	}
+
+	for i := range rpms {
+		repo.Packages = append(repo.Packages, rpmFromPackage(rpms[i]))
+	}
+
+	return nil
+}
