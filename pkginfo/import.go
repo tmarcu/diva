@@ -132,6 +132,16 @@ func rpmFromPackage(pkg *rpm.PackageFile) *RPM {
 	return rpm
 }
 
+func appendUniqueRPMName(rpms []*RPM, rpm *RPM) []*RPM {
+	for i := range rpms {
+		if rpms[i].Name == rpm.Name {
+			return rpms
+		}
+	}
+
+	return append(rpms, rpm)
+}
+
 func loadRepoFromCache(repo *Repo, cacheLoc string) error {
 	rpms, err := rpm.OpenPackageFiles(cacheLoc)
 	if err != nil {
@@ -139,7 +149,7 @@ func loadRepoFromCache(repo *Repo, cacheLoc string) error {
 	}
 
 	for i := range rpms {
-		repo.Packages = append(repo.Packages, rpmFromPackage(rpms[i]))
+		repo.Packages = appendUniqueRPMName(repo.Packages, rpmFromPackage(rpms[i]))
 	}
 
 	return nil

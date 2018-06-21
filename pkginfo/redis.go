@@ -227,7 +227,7 @@ func getRepoRedis(c redis.Conn, repo *Repo) error {
 		if err != nil {
 			return err
 		}
-		repo.Packages = append(repo.Packages, p)
+		repo.Packages = appendUniqueRPMName(repo.Packages, p)
 		progressIfTTY(bar)
 	}
 
