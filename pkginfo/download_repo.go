@@ -25,7 +25,6 @@ import (
 
 	"github.com/clearlinux/diva/internal/config"
 	"github.com/clearlinux/diva/internal/helpers"
-	"github.com/schollz/progressbar"
 )
 
 // config object used by GetUpstreamRepoFiles and called functions
@@ -138,8 +137,6 @@ func downloadAllRPMs(packages []string, workingDir string) error {
 	wg.Add(workers)
 	urlCh := make(chan string)
 	errorCh := make(chan error)
-	// set up progress bar
-	bar := progressbar.NewOptions(len(packages))
 
 	// download worker
 	dlWorker := func() {
@@ -151,18 +148,12 @@ func downloadAllRPMs(packages []string, workingDir string) error {
 			if _, dlErr = os.Stat(outFile); dlErr != nil {
 				dlErr = helpers.Download(url, outFile)
 			}
-			progressIfTTY(bar)
 			if dlErr != nil {
 				// report the error to the user
 				errorCh <- dlErr
 			}
 		}
 		wg.Done()
-	}
-
-	fmt.Printf("Downloading %d RPMs using %d workers\n", len(packages), workers)
-	if helpers.StdoutIsTTY() {
-		_ = bar.RenderBlank()
 	}
 
 	// collect errors as they happen so we can report the number of errors
@@ -189,13 +180,6 @@ func downloadAllRPMs(packages []string, workingDir string) error {
 	wg.Wait()
 	// close this when all the urls have finished processing
 	close(errorCh)
-
-	// print a blank line to clear the progress bar if in a TTY
-	if helpers.StdoutIsTTY() {
-		fmt.Println()
-	} else {
-		fmt.Println("done")
-	}
 
 	// final check for error that could happen after all workers are spawned
 	// report failed downloads to user
@@ -270,10 +254,4 @@ func GetUpstreamRepoFiles(version uint) (string, error) {
 	}
 
 	return GetRepoFiles(repo)
-}
-
-func progressIfTTY(bar *progressbar.ProgressBar) {
-	if helpers.StdoutIsTTY() {
-		_ = bar.Add(1)
-	}
 }

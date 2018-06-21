@@ -18,10 +18,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/clearlinux/diva/internal/helpers"
-
 	"github.com/gomodule/redigo/redis"
-	"github.com/schollz/progressbar"
 )
 
 // initRedis checks whether a redis-server is running and initializes it if
@@ -52,23 +49,10 @@ func storeRepoInfoRedis(c redis.Conn, repo *Repo) error {
 		return err
 	}
 
-	numPackages := len(repo.Packages)
-	fmt.Printf("Storing %d RPMs\n", numPackages)
-	bar := progressbar.NewOptions(numPackages)
-	if helpers.StdoutIsTTY() {
-		_ = bar.RenderBlank()
-	}
 	for i := range repo.Packages {
 		if err := storeRPMInfoRedis(c, repo, repo.Packages[i]); err != nil {
 			return err
 		}
-		progressIfTTY(bar)
-	}
-
-	if helpers.StdoutIsTTY() {
-		fmt.Println()
-	} else {
-		fmt.Println("done")
 	}
 
 	return nil
@@ -216,25 +200,12 @@ func getRepoRedis(c redis.Conn, repo *Repo) error {
 	if err != nil {
 		return err
 	}
-	numPackages := len(pIdxs)
-	fmt.Printf("Retrieving %d RPMs\n", numPackages)
-	bar := progressbar.NewOptions(numPackages)
-	if helpers.StdoutIsTTY() {
-		_ = bar.RenderBlank()
-	}
 	for _, pn := range pIdxs {
 		p, err := getRPMRedis(c, repo, pn)
 		if err != nil {
 			return err
 		}
 		repo.Packages = appendUniqueRPMName(repo.Packages, p)
-		progressIfTTY(bar)
-	}
-
-	if helpers.StdoutIsTTY() {
-		fmt.Println()
-	} else {
-		fmt.Println("done")
 	}
 
 	return nil

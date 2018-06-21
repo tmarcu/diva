@@ -25,8 +25,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
-	"unsafe"
 )
 
 // download does a simple http.Get on the url and performs a check against the
@@ -137,38 +135,6 @@ func xzExtractURL(url, target string) error {
 	}
 
 	return RunCommandSilent("unxz", "-T", "0", target+".xz")
-}
-
-// tty tracks whether stdout is to a TTY
-// -1 means unset
-// 0 means this is a tty
-// 1 means this is not a tty
-var tty = -1
-
-// StdoutIsTTY returns true if Stdout is to a TTY
-func StdoutIsTTY() bool {
-	// check for cached result
-	if tty != -1 {
-		return tty == 0
-	}
-
-	_, _, err := syscall.Syscall6(
-		syscall.SYS_IOCTL,
-		1, // stdout file descriptor
-		syscall.TCGETS,
-		uintptr(unsafe.Pointer(&syscall.Termios{})),
-		0, 0, 0,
-	)
-
-	// set cache so we don't syscall every time
-	// err (errno) can be -1 so don't set tty directly to err
-	if err == 0 {
-		tty = 0
-	} else {
-		tty = 1
-	}
-
-	return tty == 0
 }
 
 // RunCommandSilent runs the given command with args and does not print output
