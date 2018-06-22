@@ -18,6 +18,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/clearlinux/diva/internal/config"
+	"github.com/clearlinux/diva/internal/helpers"
+
 	"github.com/spf13/cobra"
 )
 
@@ -40,12 +43,26 @@ and more.`,
 }
 
 var rootCmdFlags = struct {
-	version bool
+	version    bool
+	configPath string
 }{}
 
 func init() {
+	cobra.OnInitialize(initConfig)
 	rootCmd.Flags().BoolVar(&rootCmdFlags.version,
 		"version", false, "Print version information and exit")
+	rootCmd.PersistentFlags().StringVarP(&rootCmdFlags.configPath,
+		"config", "c", "", "optional path to configuration file")
+}
+
+var conf *config.Config
+
+func initConfig() {
+	var err error
+	conf, err = config.ReadConfig(rootCmdFlags.configPath)
+	if err != nil {
+		helpers.Fail(err)
+	}
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

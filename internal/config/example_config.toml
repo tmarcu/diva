@@ -1,4 +1,5 @@
 upstream_url = "https://download.clearlinux.org"
+bundles_url = "https://github.com/clearlinux/clr-bundles"
 
 [mixer]
   workspace = "/home/user/clearlinux/mix"
