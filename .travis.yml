@@ -12,6 +12,7 @@ before_install:
     - go get -u github.com/BurntSushi/toml
     - go get -u github.com/go-test/deep
     - go get -u gopkg.in/alecthomas/gometalinter.v2
+    - go get -u github.com/clearlinux/mixer-tools/swupd
     - go get -u github.com/gomodule/redigo/redis
     - go get -u github.com/rafaeljusto/redigomock
     - gometalinter.v2 --install
