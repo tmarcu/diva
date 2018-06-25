@@ -28,8 +28,8 @@ var rootCmd = &cobra.Command{
 	Use:   "diva",
 	Short: "DIstribution Validation Appliance",
 	Long: `diva provides validation on Clearlinux content. Including:
-	RPM content, bundle information, full buildroot, manifests,
-	fullfiles, packs, and more.`,
+RPM content, bundle information, full buildroot, manifests, fullfiles, packs,
+and more.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if rootCmdFlags.version {
 			fmt.Printf("diva %s\n", version)
