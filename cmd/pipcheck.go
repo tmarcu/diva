@@ -28,7 +28,7 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(pipCmd)
+	checkCmd.AddCommand(pipCmd)
 	pipCmd.Flags().StringVarP(&pipFlags.path, "path", "p", "", "path to full chroot")
 	pipCmd.Flags().UintVarP(&pipFlags.version, "version", "v", 0, "version to check")
 }
