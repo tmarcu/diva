@@ -195,15 +195,16 @@ func getLatestBundles(url string) error {
 
 func fetchUpdate(u uinfo) error {
 	helpers.PrintBegin("fetching manifests from %s at version %d", u.url, u.ver)
-	baseCache := filepath.Join(conf.Paths.CacheLocation, "update", fmt.Sprint(u.ver))
-	mom, err := helpers.DownloadManifest(u.url, u.ver, "MoM", filepath.Join(baseCache, "Manifest.MoM"))
+	baseCache := filepath.Join(conf.Paths.CacheLocation, "update")
+	outMoM := filepath.Join(baseCache, fmt.Sprint(u.ver), "Manifest.MoM")
+	mom, err := helpers.DownloadManifest(u.url, u.ver, "MoM", outMoM)
 	if err != nil {
 		return err
 	}
 
 	for i := range mom.Files {
-		outMan := filepath.Join(baseCache, "Manifest."+mom.Files[i].Name)
 		ver := uint(mom.Files[i].Version)
+		outMan := filepath.Join(baseCache, fmt.Sprint(ver), "Manifest."+mom.Files[i].Name)
 		_, err := helpers.DownloadManifest(u.url, ver, mom.Files[i].Name, outMan)
 		if err != nil {
 			return err
