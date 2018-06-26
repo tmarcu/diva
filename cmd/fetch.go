@@ -15,16 +15,8 @@
 package cmd
 
 import (
-	"fmt"
-	"io/ioutil"
-	"net/http"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
-
+	"github.com/clearlinux/diva/diva"
 	"github.com/clearlinux/diva/internal/helpers"
-	"github.com/clearlinux/diva/pkginfo"
 
 	"github.com/spf13/cobra"
 )
@@ -116,152 +108,54 @@ func init() {
 	fetchUpdateCmd.Flags().StringVarP(&allFlags.upstreamURL, "upstreamurl", "u", "", "URL from which to pull update metadata")
 }
 
-type uinfo struct {
-	ver uint
-	url string
-}
-
-func getUpstreamInfo(allFlags allFetchFlags) (uinfo, error) {
-	u := uinfo{}
-	if allFlags.upstreamURL == "" {
-		u.url = conf.UpstreamURL
-	} else {
-		u.url = allFlags.upstreamURL
-	}
-
-	if allFlags.version != 0 {
-		u.ver = allFlags.version
-		// no need to continue
-		return u, nil
-	}
-
-	resp, err := http.Get(u.url + "/latest")
-	if err != nil {
-		return u, err
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return u, err
-	}
-
-	verString := strings.Trim(string(body), "\n")
-	v, err := strconv.ParseUint(verString, 10, 32)
-	u.ver = uint(v)
-	return u, err
-}
-
-func fetchRepo(u uinfo) error {
-	repo := &pkginfo.Repo{
-		URI:     fmt.Sprintf("%s/releases/%d/clear/x86_64/os/", u.url, u.ver),
-		Name:    "clear",
-		Version: u.ver,
-		Type:    "B",
-	}
-
-	helpers.PrintBegin("fetching repo from %s", repo.URI)
-	path, err := pkginfo.GetRepoFiles(repo)
-	if err != nil {
-		return err
-	}
-	helpers.PrintComplete("repo cached at %s", path)
-	return nil
-}
-
-func getLatestBundles(url string) error {
-	if url == "" {
-		url = conf.BundleDefsURL
-	}
-
-	if _, err := os.Stat(conf.Paths.BundleDefsRepo); err == nil {
-		helpers.PrintBegin("pulling latest bundle definitions")
-		err = helpers.PullRepo(conf.Paths.BundleDefsRepo)
-		if err != nil {
-			return err
-		}
-		helpers.PrintComplete("bundle repo pulled at %s", conf.Paths.BundleDefsRepo)
-		return nil
-	}
-	helpers.PrintBegin("cloning latest bundle definitions")
-	err := helpers.CloneRepo(url, filepath.Dir(conf.Paths.BundleDefsRepo))
-	if err != nil {
-		return err
-	}
-	helpers.PrintComplete("bundle repo cloned to %s", conf.Paths.BundleDefsRepo)
-	return nil
-}
-
-func fetchUpdate(u uinfo) error {
-	helpers.PrintBegin("fetching manifests from %s at version %d", u.url, u.ver)
-	baseCache := filepath.Join(conf.Paths.CacheLocation, "update")
-	outMoM := filepath.Join(baseCache, fmt.Sprint(u.ver), "Manifest.MoM")
-	mom, err := helpers.DownloadManifest(u.url, u.ver, "MoM", outMoM)
-	if err != nil {
-		return err
-	}
-
-	for i := range mom.Files {
-		ver := uint(mom.Files[i].Version)
-		outMan := filepath.Join(baseCache, fmt.Sprint(ver), "Manifest."+mom.Files[i].Name)
-		_, err := helpers.DownloadManifest(u.url, ver, mom.Files[i].Name, outMan)
-		if err != nil {
-			return err
-		}
-	}
-	helpers.PrintComplete("manifests cached at %s", baseCache)
-	return nil
-}
-
 func runFetchAllCmd(cmd *cobra.Command, args []string) {
-	u, err := getUpstreamInfo(allFlags)
+	u, err := diva.GetUpstreamInfo(conf, allFlags.upstreamURL, allFlags.version)
 	if err != nil {
 		helpers.Fail(err)
 	}
 
-	err = fetchRepo(u)
+	err = diva.FetchRepo(u)
 	if err != nil {
 		helpers.Fail(err)
 	}
 
-	err = getLatestBundles(allFlags.bundleURL)
+	err = diva.GetLatestBundles(conf, allFlags.bundleURL)
 	if err != nil {
 		helpers.Fail(err)
 	}
 
-	err = fetchUpdate(u)
+	err = diva.FetchUpdate(u)
 	if err != nil {
 		helpers.Fail(err)
 	}
 }
 
 func runFetchBundlesCmd(cmd *cobra.Command, args []string) {
-	err := getLatestBundles(allFlags.bundleURL)
+	err := diva.GetLatestBundles(conf, allFlags.bundleURL)
 	if err != nil {
 		helpers.Fail(err)
 	}
 }
 
 func runFetchRepoCmd(cmd *cobra.Command, args []string) {
-	u, err := getUpstreamInfo(allFlags)
+	u, err := diva.GetUpstreamInfo(conf, allFlags.upstreamURL, allFlags.version)
 	if err != nil {
 		helpers.Fail(err)
 	}
 
-	err = fetchRepo(u)
+	err = diva.FetchRepo(u)
 	if err != nil {
 		helpers.Fail(err)
 	}
 }
 
 func runFetchUpdateCmd(cmd *cobra.Command, args []string) {
-	u, err := getUpstreamInfo(allFlags)
+	u, err := diva.GetUpstreamInfo(conf, allFlags.upstreamURL, allFlags.version)
 	if err != nil {
 		helpers.Fail(err)
 	}
 
-	err = fetchUpdate(u)
+	err = diva.FetchUpdate(u)
 	if err != nil {
 		helpers.Fail(err)
 	}

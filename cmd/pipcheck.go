@@ -20,9 +20,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/clearlinux/diva/diva"
 	"github.com/clearlinux/diva/internal/config"
 	"github.com/clearlinux/diva/internal/helpers"
-	"github.com/clearlinux/diva/internal/testutils"
 
 	"github.com/spf13/cobra"
 )
@@ -75,8 +75,8 @@ func runPipCheck(cmd *cobra.Command, args []string) {
 }
 
 // PipCheck runs 'pip check' in a chroot at path
-func PipCheck(path string) *testutils.Results {
-	r := &testutils.Results{Name: "pipcheck"}
+func PipCheck(path string) *diva.Results {
+	r := &diva.Results{Name: "pipcheck"}
 	name := "pipcheck"
 	desc := "run pip check in full build root to check for missing python requirements"
 	err := helpers.RunCommandSilent("chroot", path, "pip", "check")
