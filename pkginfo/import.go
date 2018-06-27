@@ -97,12 +97,12 @@ func fileFromPackageFile(pkgFI *rpm.FileInfo) *File {
 		Name:           pkgFI.Name(),
 		Type:           t,
 		Size:           uint(pkgFI.Size()),
-		Hash:           "", // TODO
+		Hash:           pkgFI.Digest(),
 		SwupdHash:      "", // TODO
-		Permissions:    "", // TODO
+		Permissions:    pkgFI.Mode().Perm().String(),
 		Owner:          pkgFI.Owner(),
 		Group:          pkgFI.Group(),
-		SymlinkTarget:  "", // TODO
+		SymlinkTarget:  pkgFI.Linkname(),
 		CurrentVersion: 0,
 	}
 }
