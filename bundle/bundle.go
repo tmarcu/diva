@@ -15,7 +15,6 @@
 package bundle
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -89,7 +88,7 @@ func newDefinition(name, bundlesDir string) (Definition, error) {
 
 func updateIncludes(packageInclude, bundlesDir string, b *Definition, visitedIncludes map[string]bool) error {
 	if _, exists := visitedIncludes[packageInclude]; exists {
-		return errors.New("Bundle include loop detected")
+		return fmt.Errorf("Bundle include loop detected with %s and %s", b.Name, packageInclude)
 	}
 
 	visitedIncludes[packageInclude] = true
@@ -140,6 +139,7 @@ func readContent(name, bundlesDir string, b *Definition, visitedIncludes map[str
 			continue
 		} else if matches := includeBundleRegex.FindStringSubmatch(line); len(matches) > 1 {
 			err := updateIncludes(matches[1], bundlesDir, b, visitedIncludes)
+			visitedIncludes = make(map[string]bool)
 			if err != nil {
 				return nil, err
 			}

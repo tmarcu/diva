@@ -347,8 +347,37 @@ func TestCyclicalIncludes(t *testing.T) {
 	}
 
 	_, err := GetDefinition("cycle2", testData.testdir)
-	if strings.TrimSpace(err.Error()) != "Bundle include loop detected" || err == nil {
+	if strings.TrimSpace(err.Error()) != "Bundle include loop detected with cycle5 and cycle3" || err == nil {
 		t.Fatalf("error %s did not match expected 'Bundle include loop detected'", err.Error())
+	}
+}
+
+func TestCyclicalNeighboringIncludes(t *testing.T) {
+	testData := newTestInstance(t)
+	defer testData.teardown() // cleanup testdir
+
+	bundleAdds := []struct {
+		name    string
+		content []string
+	}{
+		{"bundleA",
+			[]string{"include(bundleB)", "include(bundleC)"},
+		},
+		{"bundleB",
+			[]string{"include(bundleC)"},
+		},
+		{"bundleC",
+			[]string{},
+		},
+	}
+
+	for _, bundle := range bundleAdds {
+		testData.addBundle(bundle.name, filepath.Join("bundles", bundle.name), bundle.content...)
+	}
+
+	_, err := GetDefinition("bundleA", testData.testdir)
+	if err != nil {
+		t.Fatalf("error bundle include loop exists when it shouldn't: %s.", err.Error())
 	}
 }
 
