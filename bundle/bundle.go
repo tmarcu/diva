@@ -119,6 +119,7 @@ func readContent(name, bundlesDir string, b *Definition, visitedIncludes map[str
 	includeBundleRegex := regexp.MustCompile(`^include\(([A-Za-z0-9_-]+)\)$`)
 
 	for _, line := range strings.Split(string(content), "\n") {
+		line = strings.TrimSpace(line)
 		if matches := bundleHeaderFieldRegex.FindStringSubmatch(line); len(matches) > 2 {
 			key := matches[1]
 			value := strings.TrimSpace(matches[2])
@@ -144,7 +145,7 @@ func readContent(name, bundlesDir string, b *Definition, visitedIncludes map[str
 				return nil, err
 			}
 		} else {
-			if strings.TrimSpace(line) != "" && !strings.HasPrefix(line, "#") {
+			if line != "" && !strings.HasPrefix(line, "#") {
 				b.DirectPackages[line] = true
 				b.AllPackages[line] = true
 			}

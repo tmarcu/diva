@@ -306,6 +306,75 @@ func TestCorrectEntireBundleDefinitionKoji(t *testing.T) {
 	}
 }
 
+func TestWhitespaceBundleDefinitionCreation(t *testing.T) {
+	testData := newTestInstance(t)
+	defer testData.teardown() // cleanup testdir
+
+	name := "package-utils"
+	bundleAdds := []struct {
+		name    string
+		content []string
+	}{
+		{name,
+			[]string{"# [TITLE]: package-utils",
+				"# [DESCRIPTION]: Utilities for packages",
+				"# [STATUS]: WIP",
+				"", // empty string
+				"# [CAPABILITIES]:",
+				"include(python3-basic)",
+				"# sad",                   // Out of order comment
+				"include(python2-basic) ", // Trailing whitespace test
+				"createrepo_c",
+			},
+		},
+		{"python3-basic",
+			[]string{},
+		},
+		{"python2-basic",
+			[]string{"packageOne"},
+		},
+	}
+
+	for _, bundle := range bundleAdds {
+		testData.addBundle(bundle.name, filepath.Join("bundles", bundle.name), bundle.content...)
+	}
+
+	expected := Definition{
+		Header: Header{
+			"package-utils",
+			"Utilities for packages",
+			"WIP",
+			"",
+			"",
+		},
+		Includes: map[string]bool{"python3-basic": true, "python2-basic": true,
+			"os-core": true, "package-utils": true},
+		DirectPackages: map[string]bool{"createrepo_c": true},
+		AllPackages:    map[string]bool{"createrepo_c": true, "packageOne": true},
+	}
+
+	for pkg := range core.AllPackages {
+		expected.AllPackages[pkg] = true
+	}
+
+	actual, err := GetDefinition(name, testData.testdir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if expected.Header != actual.Header {
+		t.Error("Header is not as expected.")
+	}
+	if !reflect.DeepEqual(expected.Includes, actual.Includes) {
+		t.Error(deep.Equal(expected.Includes, actual.Includes))
+	}
+	if !reflect.DeepEqual(expected.DirectPackages, actual.DirectPackages) {
+		t.Error(deep.Equal(expected.DirectPackages, actual.DirectPackages))
+	}
+	if !reflect.DeepEqual(expected.AllPackages, actual.AllPackages) {
+		t.Error(deep.Equal(expected.AllPackages, actual.AllPackages))
+	}
+}
+
 func TestNeitherBundleOrPackageBundle(t *testing.T) {
 	testData := newTestInstance(t)
 	defer testData.teardown() // cleanup testdir
