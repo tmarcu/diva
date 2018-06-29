@@ -155,7 +155,7 @@ func RunCommandOutput(cmdname string, args ...string) (*bytes.Buffer, error) {
 	err := cmd.Run()
 	if err != nil {
 		var buf bytes.Buffer
-		fmt.Fprintf(&buf, "failed to execute %s", strings.Join(cmd.Args, " "))
+		fmt.Fprintf(&buf, ": failed to execute %s", strings.Join(cmd.Args, " "))
 		if outBuf.Len() > 0 {
 			fmt.Fprintf(&buf, "\nSTDOUT:\n%s", outBuf.Bytes())
 		}

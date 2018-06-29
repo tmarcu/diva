@@ -62,12 +62,9 @@ func runPipCheck(cmd *cobra.Command, args []string) {
 		p = filepath.Join(c.Mixer.MixWorkSpace, "update/image", fmt.Sprint(pipFlags.version), "full")
 	}
 
-	results, err := PipCheck(p)
-	if err != nil {
-		helpers.Fail(err)
-	}
+	results := PipCheck(p)
 
-	err = results.Print(os.Stdout)
+	err := results.Print(os.Stdout)
 	if err != nil {
 		helpers.Fail(err)
 	}
@@ -78,11 +75,11 @@ func runPipCheck(cmd *cobra.Command, args []string) {
 }
 
 // PipCheck runs 'pip check' in a chroot at path
-func PipCheck(path string) (*testutils.Results, error) {
+func PipCheck(path string) *testutils.Results {
 	r := &testutils.Results{Name: "pipcheck"}
 	name := "pipcheck"
 	desc := "run pip check in full build root to check for missing python requirements"
-	_, err := helpers.RunCommandOutput("chroot", path, "pip", "check")
+	err := helpers.RunCommandSilent("chroot", path, "pip", "check")
 	r.Add(name, desc, err, false)
-	return r, err
+	return r
 }
