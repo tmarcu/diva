@@ -44,7 +44,7 @@ func storeIterableRedisSet(c redis.Conn, key string, value []string) error {
 
 // storeRepoInfoRedis stores all data in repo to the running redis-server
 func storeRepoInfoRedis(c redis.Conn, repo *Repo) error {
-	repoKey := fmt.Sprintf("%s%d%s", repo.Name, repo.Version, repo.Type)
+	repoKey := fmt.Sprintf("%s%s%s", repo.Name, repo.Version, repo.Type)
 	if _, err := c.Do("SET", repoKey, repo.URI); err != nil {
 		return err
 	}
@@ -61,7 +61,7 @@ func storeRepoInfoRedis(c redis.Conn, repo *Repo) error {
 // storeRPMInfoRedis stores the rpm under the constructed repo key in the
 // running redis-server
 func storeRPMInfoRedis(c redis.Conn, repo *Repo, rpm *RPM) error {
-	repoKey := fmt.Sprintf("%s%d%s", repo.Name, repo.Version, repo.Type)
+	repoKey := fmt.Sprintf("%s%s%s", repo.Name, repo.Version, repo.Type)
 	if _, err := c.Do("SADD", repoKey+":packages", rpm.Name); err != nil {
 		return err
 	}
@@ -105,7 +105,7 @@ func storeRPMInfoRedis(c redis.Conn, repo *Repo, rpm *RPM) error {
 }
 
 func getFilesRedis(c redis.Conn, repo *Repo, p *RPM) ([]*File, error) {
-	pkgKey := fmt.Sprintf("%s%d%s:%s", repo.Name, repo.Version, repo.Type, p.Name)
+	pkgKey := fmt.Sprintf("%s%s%s:%s", repo.Name, repo.Version, repo.Type, p.Name)
 	fIdxsKey := fmt.Sprintf("%s:files", pkgKey)
 	fIdxs, err := redis.Strings(c.Do("HVALS", fIdxsKey))
 	if err != nil {
@@ -134,7 +134,7 @@ func getFilesRedis(c redis.Conn, repo *Repo, p *RPM) ([]*File, error) {
 func getRPMRedis(c redis.Conn, repo *Repo, rpmName string) (*RPM, error) {
 	var err error
 	p := &RPM{}
-	pkgKey := fmt.Sprintf("%s%d%s:%s", repo.Name, repo.Version, repo.Type, rpmName)
+	pkgKey := fmt.Sprintf("%s%s%s:%s", repo.Name, repo.Version, repo.Type, rpmName)
 	p.Name, err = redis.String(c.Do("HGET", pkgKey, "Name"))
 	if err != nil {
 		return nil, err
@@ -194,7 +194,7 @@ func getRPMRedis(c redis.Conn, repo *Repo, rpmName string) (*RPM, error) {
 // getRepoRedis retrieves all data associated with the given repo from the
 // running redis-server
 func getRepoRedis(c redis.Conn, repo *Repo) error {
-	repoKey := fmt.Sprintf("%s%d%s", repo.Name, repo.Version, repo.Type)
+	repoKey := fmt.Sprintf("%s%s%s", repo.Name, repo.Version, repo.Type)
 	pkgsKey := fmt.Sprintf("%s:packages", repoKey)
 	pIdxs, err := redis.Strings(c.Do("SMEMBERS", pkgsKey))
 	if err != nil {

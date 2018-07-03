@@ -19,7 +19,7 @@ package pkginfo
 type Repo struct {
 	URI      string
 	Name     string
-	Version  uint
+	Version  string
 	Type     string
 	Priority uint
 	Packages []*RPM

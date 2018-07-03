@@ -182,11 +182,11 @@ func CloneRepo(gitURL, repoParent string) error {
 }
 
 // DownloadManifest downloads a manifest to outF
-func DownloadManifest(baseURL string, version uint, component, outF string) error {
+func DownloadManifest(baseURL string, version string, component, outF string) error {
 	if _, err := os.Lstat(outF); err == nil {
 		return nil
 	}
-	url := fmt.Sprintf("%s/update/%d/Manifest.%s.tar", baseURL, version, component)
+	url := fmt.Sprintf("%s/update/%s/Manifest.%s.tar", baseURL, version, component)
 
 	err := os.MkdirAll(filepath.Dir(outF), 0744)
 	if err != nil {

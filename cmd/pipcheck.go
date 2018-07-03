@@ -16,7 +16,6 @@ package cmd
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -30,11 +29,11 @@ import (
 func init() {
 	checkCmd.AddCommand(pipCmd)
 	pipCmd.Flags().StringVarP(&pipFlags.path, "path", "p", "", "path to full chroot")
-	pipCmd.Flags().UintVarP(&pipFlags.version, "version", "v", 0, "version to check")
+	pipCmd.Flags().StringVarP(&pipFlags.version, "version", "v", "", "version to check")
 }
 
 type pipCmdFlags struct {
-	version uint
+	version string
 	path    string
 }
 
@@ -49,7 +48,7 @@ local configuration and <version>.`,
 }
 
 func runPipCheck(cmd *cobra.Command, args []string) {
-	if pipFlags.version == 0 && pipFlags.path == "" {
+	if pipFlags.version == "" && pipFlags.path == "" {
 		helpers.Fail(errors.New("must supply either --version or --path argument"))
 	}
 
@@ -59,7 +58,7 @@ func runPipCheck(cmd *cobra.Command, args []string) {
 		if err != nil {
 			helpers.Fail(err)
 		}
-		p = filepath.Join(c.Mixer.MixWorkSpace, "update/image", fmt.Sprint(pipFlags.version), "full")
+		p = filepath.Join(c.Mixer.MixWorkSpace, "update/image", pipFlags.version, "full")
 	}
 
 	results := PipCheck(p)

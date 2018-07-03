@@ -20,7 +20,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/clearlinux/diva/internal/config"
@@ -32,13 +31,13 @@ import (
 // UInfo describes basic information about the upstream update server and local
 // cache location
 type UInfo struct {
-	Ver      uint
+	Ver      string
 	URL      string
 	CacheLoc string
 }
 
 // GetUpstreamInfo populates the UInfo struct and returns it
-func GetUpstreamInfo(conf *config.Config, upstreamURL string, version uint) (UInfo, error) {
+func GetUpstreamInfo(conf *config.Config, upstreamURL string, version string) (UInfo, error) {
 	u := UInfo{}
 	if upstreamURL == "" {
 		u.URL = conf.UpstreamURL
@@ -46,7 +45,7 @@ func GetUpstreamInfo(conf *config.Config, upstreamURL string, version uint) (UIn
 		u.URL = upstreamURL
 	}
 
-	if version != 0 {
+	if version != "" {
 		u.Ver = version
 		// no need to continue
 		return u, nil
@@ -64,10 +63,7 @@ func GetUpstreamInfo(conf *config.Config, upstreamURL string, version uint) (UIn
 		return u, err
 	}
 
-	verString := strings.Trim(string(body), "\n")
-	v, err := strconv.ParseUint(verString, 10, 32)
-	u.Ver = uint(v)
-
+	u.Ver = strings.Trim(string(body), "\n")
 	// no support yet for modifying cache location via commandline
 	u.CacheLoc = conf.Paths.CacheLocation
 	return u, err
@@ -77,7 +73,7 @@ func GetUpstreamInfo(conf *config.Config, upstreamURL string, version uint) (UIn
 // location
 func FetchRepo(u UInfo) error {
 	repo := &pkginfo.Repo{
-		URI:     fmt.Sprintf("%s/releases/%d/clear/x86_64/os/", u.URL, u.Ver),
+		URI:     fmt.Sprintf("%s/releases/%s/clear/x86_64/os/", u.URL, u.Ver),
 		Name:    "clear",
 		Version: u.Ver,
 		Type:    "B",
@@ -119,9 +115,9 @@ func GetLatestBundles(conf *config.Config, url string) error {
 
 // FetchUpdate downloads manifests from the u.URL server
 func FetchUpdate(u UInfo) error {
-	helpers.PrintBegin("fetching manifests from %s at version %d", u.URL, u.Ver)
+	helpers.PrintBegin("fetching manifests from %s at version %s", u.URL, u.Ver)
 	baseCache := filepath.Join(u.CacheLoc, "update")
-	outMoM := filepath.Join(baseCache, fmt.Sprint(u.Ver), "Manifest.MoM")
+	outMoM := filepath.Join(baseCache, u.Ver, "Manifest.MoM")
 	err := helpers.DownloadManifest(u.URL, u.Ver, "MoM", outMoM)
 	if err != nil {
 		return err
@@ -132,8 +128,8 @@ func FetchUpdate(u UInfo) error {
 	}
 
 	for i := range mom.Files {
-		ver := uint(mom.Files[i].Version)
-		outMan := filepath.Join(baseCache, fmt.Sprint(ver), "Manifest."+mom.Files[i].Name)
+		ver := fmt.Sprint(mom.Files[i].Version)
+		outMan := filepath.Join(baseCache, ver, "Manifest."+mom.Files[i].Name)
 		err := helpers.DownloadManifest(u.URL, ver, mom.Files[i].Name, outMan)
 		if err != nil {
 			return err

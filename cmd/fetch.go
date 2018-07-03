@@ -22,7 +22,7 @@ import (
 )
 
 type allFetchFlags struct {
-	version     uint
+	version     string
 	bundleURL   string
 	upstreamURL string
 }
@@ -96,15 +96,15 @@ func init() {
 
 	rootCmd.AddCommand(fetchCmd)
 
-	fetchAllCmd.Flags().UintVarP(&allFlags.version, "version", "v", 0, "version from which to pull data")
+	fetchAllCmd.Flags().StringVarP(&allFlags.version, "version", "v", "", "version from which to pull data")
 	fetchAllCmd.Flags().StringVarP(&allFlags.bundleURL, "bundleurl", "b", "", "URL from which to pull bundle definitions")
 	fetchAllCmd.Flags().StringVarP(&allFlags.upstreamURL, "upstreamurl", "u", "", "URL from which to pull update metadata")
 
 	fetchBundlesCmd.Flags().StringVarP(&allFlags.bundleURL, "bundleurl", "b", "", "URL from which to pull bundle definitions")
 
-	fetchRepoCmd.Flags().UintVarP(&allFlags.version, "version", "v", 0, "version from which to pull data")
+	fetchRepoCmd.Flags().StringVarP(&allFlags.version, "version", "v", "", "version from which to pull data")
 
-	fetchUpdateCmd.Flags().UintVarP(&allFlags.version, "version", "v", 0, "version from which to pull data")
+	fetchUpdateCmd.Flags().StringVarP(&allFlags.version, "version", "v", "", "version from which to pull data")
 	fetchUpdateCmd.Flags().StringVarP(&allFlags.upstreamURL, "upstreamurl", "u", "", "URL from which to pull update metadata")
 }
 

@@ -24,10 +24,10 @@ import (
 func TestGetRepoRedis(t *testing.T) {
 	repo := &Repo{
 		Name:    "testrepo",
-		Version: 100,
+		Version: "100",
 		Type:    "B",
 	}
-	repoKey := fmt.Sprintf("%s%d%s", repo.Name, repo.Version, repo.Type)
+	repoKey := fmt.Sprintf("%s%s%s", repo.Name, repo.Version, repo.Type)
 	pkgsKey := fmt.Sprintf("%s:packages", repoKey)
 	pkgKey := fmt.Sprintf("%s:testpkg", repoKey)
 	fIdxKey := fmt.Sprintf("%s:files", pkgKey)
@@ -96,7 +96,7 @@ func TestStoreRPMInfoRedis(t *testing.T) {
 	}
 	repo := &Repo{
 		Name:    "testrepo",
-		Version: uint(100),
+		Version: "100",
 		Type:    "B",
 		Packages: []*RPM{
 			{

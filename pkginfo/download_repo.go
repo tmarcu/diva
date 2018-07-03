@@ -206,7 +206,7 @@ func GetRepoFiles(repo *Repo) (string, error) {
 		c.Paths.CacheLocation,
 		"rpms",
 		repo.Name,
-		fmt.Sprint(repo.Version),
+		repo.Version,
 		repo.Type,
 	)
 	if err = os.MkdirAll(workingDir, 0755); err != nil {
@@ -239,13 +239,13 @@ func GetRepoFiles(repo *Repo) (string, error) {
 // c.UpstreamURL by first paring the repo metadata. These packages are
 // downloaded to the c.CacheLocation/rpms/<version>/packages/ if they do not
 // already exist there.
-func GetUpstreamRepoFiles(version uint) (string, error) {
+func GetUpstreamRepoFiles(version string) (string, error) {
 	var err error
 	c, err = config.ReadConfig("")
 	if err != nil {
 		return "", err
 	}
-	url := fmt.Sprintf("%s/releases/%d/clear/x86_64/os", c.UpstreamURL, version)
+	url := fmt.Sprintf("%s/releases/%s/clear/x86_64/os", c.UpstreamURL, version)
 	repo := &Repo{
 		URI:     url,
 		Name:    "clear",
