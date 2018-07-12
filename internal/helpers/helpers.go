@@ -25,8 +25,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-
-	"github.com/clearlinux/mixer-tools/swupd"
 )
 
 // download does a simple http.Get on the url and performs a check against the
@@ -183,23 +181,23 @@ func CloneRepo(gitURL, repoParent string) error {
 	return RunCommandSilent("git", "-C", repoParent, "clone", gitURL)
 }
 
-// DownloadManifest downloads a manifest to outF and returns the parsed manifest
-func DownloadManifest(baseURL string, version uint, component, outF string) (*swupd.Manifest, error) {
+// DownloadManifest downloads a manifest to outF
+func DownloadManifest(baseURL string, version uint, component, outF string) error {
 	if _, err := os.Lstat(outF); err == nil {
-		return swupd.ParseManifestFile(outF)
+		return nil
 	}
 	url := fmt.Sprintf("%s/update/%d/Manifest.%s.tar", baseURL, version, component)
 
 	err := os.MkdirAll(filepath.Dir(outF), 0744)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	err = tarExtractURL(url, outF)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return swupd.ParseManifestFile(outF)
+	return nil
 }
 
 func tarExtractURL(url, target string) error {

@@ -26,6 +26,7 @@ import (
 	"github.com/clearlinux/diva/internal/config"
 	"github.com/clearlinux/diva/internal/helpers"
 	"github.com/clearlinux/diva/pkginfo"
+	"github.com/clearlinux/mixer-tools/swupd"
 )
 
 // UInfo describes basic information about the upstream update server and local
@@ -121,7 +122,11 @@ func FetchUpdate(u UInfo) error {
 	helpers.PrintBegin("fetching manifests from %s at version %d", u.URL, u.Ver)
 	baseCache := filepath.Join(u.CacheLoc, "update")
 	outMoM := filepath.Join(baseCache, fmt.Sprint(u.Ver), "Manifest.MoM")
-	mom, err := helpers.DownloadManifest(u.URL, u.Ver, "MoM", outMoM)
+	err := helpers.DownloadManifest(u.URL, u.Ver, "MoM", outMoM)
+	if err != nil {
+		return err
+	}
+	mom, err := swupd.ParseManifestFile(outMoM)
 	if err != nil {
 		return err
 	}
@@ -129,7 +134,7 @@ func FetchUpdate(u UInfo) error {
 	for i := range mom.Files {
 		ver := uint(mom.Files[i].Version)
 		outMan := filepath.Join(baseCache, fmt.Sprint(ver), "Manifest."+mom.Files[i].Name)
-		_, err := helpers.DownloadManifest(u.URL, ver, mom.Files[i].Name, outMan)
+		err := helpers.DownloadManifest(u.URL, ver, mom.Files[i].Name, outMan)
 		if err != nil {
 			return err
 		}
