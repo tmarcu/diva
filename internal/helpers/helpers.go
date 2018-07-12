@@ -29,6 +29,22 @@ import (
 	"strings"
 )
 
+// Min returns the min of two strings...since go only implements Float64
+func Min(a, b string) string {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// Max returns the max of two strings...since go only implements Float64
+func Max(a, b string) string {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 // download does a simple http.Get on the url and performs a check against the
 // error code. The response body is only returned for StatusOK
 func download(url string) (*http.Response, error) {
