@@ -110,7 +110,7 @@ func fileFromPackageFile(pkgFI *rpm.FileInfo) *File {
 func rpmFromPackage(pkg *rpm.PackageFile) *RPM {
 	rpm := &RPM{
 		Name:         pkg.Name(),
-		Version:      pkg.RPMVersion(),
+		Version:      pkg.Version(),
 		Release:      pkg.Release(),
 		Architecture: pkg.Architecture(),
 		SRPMName:     pkg.SourceRPM(),
