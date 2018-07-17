@@ -33,6 +33,7 @@ type bundleCmdFlags struct {
 	repoName string
 	version  string
 	bundle   string
+	update   bool
 }
 
 // flags passed in as args
@@ -44,6 +45,7 @@ func init() {
 	verifyBundlesCmd.Flags().StringVarP(&bundleFlags.repoName, "reponame", "n", "clear", "Name of repo")
 	verifyBundlesCmd.Flags().StringVarP(&bundleFlags.version, "version", "v", "0", "Version to check")
 	verifyBundlesCmd.Flags().StringVarP(&bundleFlags.bundle, "bundle", "b", "", "Bundle to check")
+	verifyBundlesCmd.Flags().BoolVar(&bundleFlags.update, "update", false, "Update repo RPMs")
 }
 
 var verifyBundlesCmd = &cobra.Command{
@@ -70,7 +72,7 @@ func runVerifyBundle(cmd *cobra.Command, args []string) {
 		Type:    "B",
 	}
 
-	err := pkginfo.ImportAllRPMs(&repo)
+	err := pkginfo.ImportAllRPMs(&repo, bundleFlags.update)
 	helpers.FailIfErr(err)
 
 	err = diva.GetLatestBundles(conf, "")

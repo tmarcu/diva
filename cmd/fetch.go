@@ -26,6 +26,7 @@ type allFetchFlags struct {
 	bundleURL   string
 	upstreamURL string
 	recursive   bool
+	update      bool
 }
 
 var allFlags allFetchFlags
@@ -36,14 +37,15 @@ var fetchCmd = &cobra.Command{
 }
 
 var fetchAllCmd = &cobra.Command{
-	Use:   "all [--version <version>] [--bundleurl|--upstreamurl <url>]",
+	Use:   "all [--version <version>] [--bundleurl|--upstreamurl <url>] [--update]",
 	Run:   runFetchAllCmd,
 	Short: "Fetch metadata from <version> or latest available if <version> is not supplied",
 	Long: `Fetch latest bundle definitions, RPM repository, and update manifests from <version>.
 If <version> is not supplied, fetch latest available content. Pass
 --upstreamurl to fetch RPMs and update metadata from a location other than the
 configured Upstream URL and --bundleurl to fetch the bundle definitions from a
-location other than default.
+location other than default. If --update is passed, the cached Repo data will
+be updated with new information from the upstream url.
 
 RPMs will be cached under the cache location defined in your configuration or
 default to $HOME/clearlinux/data/rpms/<version>. Bundle definition files will
@@ -100,6 +102,7 @@ func init() {
 	fetchAllCmd.Flags().StringVarP(&allFlags.version, "version", "v", "", "version from which to pull data")
 	fetchAllCmd.Flags().StringVarP(&allFlags.bundleURL, "bundleurl", "b", "", "URL from which to pull bundle definitions")
 	fetchAllCmd.Flags().StringVarP(&allFlags.upstreamURL, "upstreamurl", "u", "", "URL from which to pull update metadata")
+	fetchAllCmd.Flags().BoolVar(&allFlags.update, "update", false, "update pre-existing Repo")
 
 	fetchBundlesCmd.Flags().StringVarP(&allFlags.bundleURL, "bundleurl", "b", "", "URL from which to pull bundle definitions")
 
@@ -111,7 +114,7 @@ func init() {
 }
 
 func runFetchAllCmd(cmd *cobra.Command, args []string) {
-	u, err := diva.GetUpstreamInfo(conf, allFlags.upstreamURL, allFlags.version, allFlags.recursive)
+	u, err := diva.GetUpstreamInfo(conf, allFlags.upstreamURL, allFlags.version, allFlags.recursive, allFlags.update)
 	helpers.FailIfErr(err)
 
 	err = diva.FetchRepo(u)
@@ -130,7 +133,7 @@ func runFetchBundlesCmd(cmd *cobra.Command, args []string) {
 }
 
 func runFetchRepoCmd(cmd *cobra.Command, args []string) {
-	u, err := diva.GetUpstreamInfo(conf, allFlags.upstreamURL, allFlags.version, allFlags.recursive)
+	u, err := diva.GetUpstreamInfo(conf, allFlags.upstreamURL, allFlags.version, allFlags.recursive, allFlags.update)
 	helpers.FailIfErr(err)
 
 	err = diva.FetchRepo(u)
@@ -138,7 +141,7 @@ func runFetchRepoCmd(cmd *cobra.Command, args []string) {
 }
 
 func runFetchUpdateCmd(cmd *cobra.Command, args []string) {
-	u, err := diva.GetUpstreamInfo(conf, allFlags.upstreamURL, allFlags.version, allFlags.recursive)
+	u, err := diva.GetUpstreamInfo(conf, allFlags.upstreamURL, allFlags.version, allFlags.recursive, allFlags.update)
 	helpers.FailIfErr(err)
 
 	err = diva.FetchUpdate(u)

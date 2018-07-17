@@ -37,16 +37,19 @@ type UInfo struct {
 	MinVer   uint
 	URL      string
 	CacheLoc string
+	Update   bool
 }
 
 // GetUpstreamInfo populates the UInfo struct and returns it
-func GetUpstreamInfo(conf *config.Config, upstreamURL string, version string, recursive bool) (UInfo, error) {
+func GetUpstreamInfo(conf *config.Config, upstreamURL string, version string, recursive bool, update bool) (UInfo, error) {
 	u := UInfo{}
 	if upstreamURL == "" {
 		u.URL = conf.UpstreamURL
 	} else {
 		u.URL = upstreamURL
 	}
+
+	u.Update = update
 
 	if version != "" {
 		u.Ver = version
@@ -93,7 +96,7 @@ func FetchRepo(u UInfo) error {
 	}
 
 	helpers.PrintBegin("fetching repo from %s", repo.URI)
-	path, err := pkginfo.GetRepoFiles(repo)
+	path, err := pkginfo.GetRepoFiles(repo, u.Update)
 	if err != nil {
 		return err
 	}

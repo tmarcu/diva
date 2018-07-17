@@ -23,6 +23,7 @@ import (
 	"runtime"
 	"sync"
 
+	rpm "github.com/cavaliercoder/go-rpm"
 	"github.com/clearlinux/diva/internal/config"
 	"github.com/clearlinux/diva/internal/helpers"
 )
@@ -34,12 +35,13 @@ var c *config.Config
 // file.  We cannot just look for the filelists file directly because a hash is
 // part of the filename. The repomd.xml file lists this file name so we can
 // construct the url using this value.
-func buildFilelistsURL(repo *Repo, workingDir string) (string, error) {
+func buildFilelistsURL(repo *Repo, workingDir string, update bool) (string, error) {
 	// download repomd.xml
 	repomdFile := filepath.Join(workingDir, "repomd.xml")
 	repomdURL := fmt.Sprintf("%s/repodata/repomd.xml", repo.URI)
+
 	_, err := os.Stat(repomdFile)
-	if err != nil {
+	if err != nil || update {
 		err = helpers.Download(repomdURL, repomdFile)
 		if err != nil {
 			return "", err
@@ -85,7 +87,43 @@ func buildFilelistsURL(repo *Repo, workingDir string) (string, error) {
 	return fmt.Sprintf("%s/%s", repo.URI, path), nil
 }
 
-func buildPackageURLs(repo *Repo, flistsPath string) ([]string, error) {
+// If a version changed from what was in the cache, return true, otherwise false
+func versionChanged(rpmURL, cacheDir string, cRPM *rpm.PackageFile) bool {
+	newRPM, err := rpm.OpenPackageFile(rpmURL)
+	if err != nil {
+		return true
+	}
+	// VersionCompare returns 1 if newRPM is more recent, -1 if cRPM is more recent
+	// and 0, if they're the same.
+	if rpm.VersionCompare(newRPM, cRPM) == 1 {
+		return true
+	}
+	return false
+}
+
+// If a RPM needs to be redownloaded, return true, otherwise return false
+func updateCache(cachedRPMs []*rpm.PackageFile, rpmName, rpmURL, cacheDir string) bool {
+	for _, cRPM := range cachedRPMs {
+		if cRPM.Name() == rpmName {
+			if !versionChanged(rpmURL, cacheDir, cRPM) {
+				return false
+			}
+			staleRPM := fmt.Sprintf("%s/%s-%s-%s.%s.rpm",
+				cacheDir,
+				cRPM.Name(),
+				cRPM.Version(),
+				cRPM.Release(),
+				cRPM.Architecture(),
+			)
+			if err := os.Remove(staleRPM); err != nil {
+				return true
+			}
+		}
+	}
+	return true
+}
+
+func buildPackageURLs(repo *Repo, flistsPath, workingDir string, update bool) ([]string, error) {
 	// <filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="7436">
 	//   <package ... name="pkgname" arch="x86_64">
 	//     <version ... ver="ver" rel="rel"/>
@@ -116,10 +154,21 @@ func buildPackageURLs(repo *Repo, flistsPath string) ([]string, error) {
 		return []string{}, err
 	}
 
+	cacheDir := filepath.Join(workingDir, "packages")
+	cachedRPMs, err := rpm.OpenPackageFiles(cacheDir)
+	if err != nil {
+		return []string{}, err
+	}
+
 	packages := []string{}
 	url := fmt.Sprintf("%s/Packages", repo.URI)
 	for _, p := range v.Packages {
 		rpmURL := fmt.Sprintf("%s/%s-%s-%s.%s.rpm", url, p.Name, p.VR.V, p.VR.R, p.Arch)
+		if update {
+			if !updateCache(cachedRPMs, p.Name, rpmURL, cacheDir) {
+				continue
+			}
+		}
 		packages = append(packages, rpmURL)
 	}
 
@@ -195,7 +244,7 @@ func downloadAllRPMs(packages []string, workingDir string) error {
 // baseURL by first parsing the repo metadata. These packages are downloaded to
 // the c.CacheLocation/rpms/<version>/packages/ if they do not already exist
 // there.
-func GetRepoFiles(repo *Repo) (string, error) {
+func GetRepoFiles(repo *Repo, update bool) (string, error) {
 	var err error
 	c, err = config.ReadConfig("")
 	if err != nil {
@@ -209,11 +258,12 @@ func GetRepoFiles(repo *Repo) (string, error) {
 		repo.Version,
 		repo.Type,
 	)
+
 	if err = os.MkdirAll(workingDir, 0755); err != nil {
 		return "", err
 	}
 
-	url, err := buildFilelistsURL(repo, workingDir)
+	url, err := buildFilelistsURL(repo, workingDir, update)
 	if err != nil {
 		return "", err
 	}
@@ -227,7 +277,7 @@ func GetRepoFiles(repo *Repo) (string, error) {
 		return "", err
 	}
 
-	packages, err := buildPackageURLs(repo, flistsPath)
+	packages, err := buildPackageURLs(repo, flistsPath, workingDir, update)
 	if err != nil {
 		return "", err
 	}
@@ -253,5 +303,5 @@ func GetUpstreamRepoFiles(version string) (string, error) {
 		Type:    "B",
 	}
 
-	return GetRepoFiles(repo)
+	return GetRepoFiles(repo, false)
 }
