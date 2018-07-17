@@ -7,15 +7,8 @@ go_import_path: github.com/clearlinux/diva
 
 before_install:
     - sudo apt-get update -qq
-    - go get -u github.com/spf13/cobra
-    - go get -u github.com/cavaliercoder/go-rpm
-    - go get -u github.com/BurntSushi/toml
-    - go get -u github.com/go-test/deep
-    - go get -u gopkg.in/alecthomas/gometalinter.v2
-    - go get -u github.com/clearlinux/mixer-tools/swupd
-    - go get -u github.com/gomodule/redigo/redis
     - go get -u github.com/rafaeljusto/redigomock
-    - go get -u github.com/mndrix/tap-go
+    - go get -u gopkg.in/alecthomas/gometalinter.v2
     - gometalinter.v2 --install
 
 script:
