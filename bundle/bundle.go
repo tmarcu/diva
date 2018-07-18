@@ -290,7 +290,7 @@ func GetAllPackagesForAllBundles(bundlesDir string) ([]string, error) {
 		}
 	}
 
-	allPackageNames := []string{}
+	allPackageNames := make([]string, 0, len(allPackages))
 	for pkg := range allPackages {
 		allPackageNames = append(allPackageNames, pkg)
 	}
