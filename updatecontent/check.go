@@ -98,7 +98,6 @@ func checkBundleFileHashes(cacheLoc string, m *swupd.Manifest, minVer uint) ([]s
 	}
 	close(fCh)
 	wg.Wait()
-	close(fails)
 
 	if err == nil && len(eCh) > 0 {
 		err = <-eCh
@@ -110,8 +109,9 @@ func checkBundleFileHashes(cacheLoc string, m *swupd.Manifest, minVer uint) ([]s
 	}
 
 	var failures []string
-	for fail := range fails {
-		failures = append(failures, fail)
+	chanLen = len(fails)
+	for i := 0; i < chanLen; i++ {
+		failures = append(failures, <-fails)
 	}
 
 	return failures, err
@@ -175,6 +175,11 @@ func CheckFileHashes(r *diva.Results, c *config.Config, version, minVer uint) er
 		err = <-errChan
 	}
 
+	chanLen := len(errChan)
+	for i := 0; i < chanLen; i++ {
+		<-errChan
+	}
+
 	return err
 }
 
@@ -183,7 +188,7 @@ func checkBundleFileHashesPack(filesLoc string, m *swupd.Manifest, minVer uint) 
 	workers := 4 // have to deal with "too many open files"
 	wg.Add(workers)
 	fCh := make(chan *swupd.File)
-	eCh := make(chan error)
+	eCh := make(chan error, workers)
 
 	for i := 0; i < workers; i++ {
 		go func() {
@@ -216,11 +221,11 @@ func checkBundleFileHashesPack(filesLoc string, m *swupd.Manifest, minVer uint) 
 	}
 	close(fCh)
 	wg.Wait()
-	close(eCh)
 
 	var errs []error
-	for e := range eCh {
-		errs = append(errs, e)
+	chanLen := len(eCh)
+	for i := 0; i < chanLen; i++ {
+		errs = append(errs, <-eCh)
 	}
 
 	return errs
@@ -346,8 +351,8 @@ func CheckDeltaPacks(c *config.Config, m *swupd.Manifest) ([]string, error) {
 	workers := len(vers)
 	wg.Add(workers)
 	vCh := make(chan uint32)
-	errCh := make(chan error)
-	failCh := make(chan string)
+	errCh := make(chan error, workers)
+	failCh := make(chan string, workers)
 
 	for i := 0; i < workers; i++ {
 		go func() {
@@ -391,16 +396,20 @@ func CheckDeltaPacks(c *config.Config, m *swupd.Manifest) ([]string, error) {
 
 	close(vCh)
 	wg.Wait()
-	close(errCh)
-	close(failCh)
 
 	if err == nil && len(errCh) > 0 {
 		err = <-errCh
 	}
 
+	chanLen := len(errCh)
+	for i := 0; i < chanLen; i++ {
+		<-errCh
+	}
+
 	var fails []string
-	for f := range failCh {
-		fails = append(fails, f)
+	chanLen = len(failCh)
+	for i := 0; i < chanLen; i++ {
+		fails = append(fails, <-failCh)
 	}
 
 	return fails, err
@@ -420,7 +429,7 @@ func CheckPacks(r *diva.Results, c *config.Config, version, minVer uint, delta b
 	workers := 4
 	wg.Add(workers)
 	bCh := make(chan *swupd.File)
-	eCh := make(chan error)
+	eCh := make(chan error, workers)
 
 	for i := 0; i < workers; i++ {
 		go func() {
@@ -467,10 +476,14 @@ func CheckPacks(r *diva.Results, c *config.Config, version, minVer uint, delta b
 	}
 	close(bCh)
 	wg.Wait()
-	close(eCh)
 
 	if err == nil && len(eCh) > 0 {
 		err = <-eCh
+	}
+
+	chanLen := len(eCh)
+	for i := 0; i < chanLen; i++ {
+		<-eCh
 	}
 
 	return err

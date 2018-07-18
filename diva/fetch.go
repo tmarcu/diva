@@ -219,7 +219,7 @@ func FetchUpdateFiles(u UInfo) error {
 	nworkers := 8
 	wg.Add(nworkers)
 	fChan := make(chan finfo)
-	errChan := make(chan error)
+	errChan := make(chan error, nworkers)
 
 	retried := false
 	for i := 0; i < nworkers; i++ {
