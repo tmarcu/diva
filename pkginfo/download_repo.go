@@ -40,9 +40,12 @@ func buildFilelistsURL(repo *Repo, workingDir string, update bool) (string, erro
 	repomdFile := filepath.Join(workingDir, "repomd.xml")
 	repomdURL := fmt.Sprintf("%s/repodata/repomd.xml", repo.URI)
 
-	_, err := os.Stat(repomdFile)
+	var err error
+	if !update {
+		_, err = os.Stat(repomdFile)
+	}
 	if err != nil || update {
-		err = helpers.Download(repomdURL, repomdFile)
+		err = helpers.Download(repomdURL, repomdFile, update)
 		if err != nil {
 			return "", err
 		}
@@ -95,10 +98,7 @@ func versionChanged(rpmURL, cacheDir string, cRPM *rpm.PackageFile) bool {
 	}
 	// VersionCompare returns 1 if newRPM is more recent, -1 if cRPM is more recent
 	// and 0, if they're the same.
-	if rpm.VersionCompare(newRPM, cRPM) == 1 {
-		return true
-	}
-	return false
+	return rpm.VersionCompare(newRPM, cRPM) == 1
 }
 
 // If a RPM needs to be redownloaded, return true, otherwise return false
@@ -195,7 +195,7 @@ func downloadAllRPMs(packages []string, workingDir string) error {
 			var dlErr error
 			// do not download again if it already exists
 			if _, dlErr = os.Stat(outFile); dlErr != nil {
-				dlErr = helpers.Download(url, outFile)
+				dlErr = helpers.Download(url, outFile, false)
 			}
 			if dlErr != nil {
 				// report the error to the user
@@ -272,7 +272,7 @@ func GetRepoFiles(repo *Repo, update bool) (string, error) {
 	// this file can be either gz or xz compressed, use DownloadFile
 	// which will use whatever extraction method is appropriate based
 	// on the file extension.
-	err = helpers.DownloadFile(url, flistsPath)
+	err = helpers.DownloadFile(url, flistsPath, update)
 	if err != nil {
 		return "", err
 	}

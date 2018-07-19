@@ -48,7 +48,7 @@ func download(url string) (*http.Response, error) {
 // try to extract the file, simply lays it on disk. Use this function if you
 // know the file at url is not compressed or if you want to download a
 // compressed file as-is.
-func Download(url, filename string) error {
+func Download(url, filename string, overwrite bool) error {
 	resp, err := download(url)
 	if err != nil {
 		return err
@@ -74,6 +74,13 @@ func Download(url, filename string) error {
 		return err
 	}
 
+	if overwrite {
+		err := os.Remove(filename)
+		if err != nil {
+			return err
+		}
+	}
+
 	// move tempfile to final now that everything else has succeeded
 	return renameIfNotExists(tmpFile, filename)
 }
@@ -93,22 +100,22 @@ func renameIfNotExists(src, dst string) error {
 // compression method indicated by the url file extension. If there is no file
 // extension or the extension does not match a supported compression method the
 // file is downloaded as-is.
-func DownloadFile(url, target string) error {
+func DownloadFile(url, target string, overwrite bool) error {
 	var err error
 	switch filepath.Ext(url) {
 	case ".gz":
-		err = gzExtractURL(url, target)
+		err = gzExtractURL(url, target, overwrite)
 	case ".xz":
-		err = xzExtractURL(url, target)
+		err = xzExtractURL(url, target, overwrite)
 	default:
-		err = Download(url, target)
+		err = Download(url, target, overwrite)
 	}
 	return err
 }
 
 // gzExtractURL will download a file at the url and extract it to the target
 // location
-func gzExtractURL(url, target string) error {
+func gzExtractURL(url, target string, overwrite bool) error {
 	resp, err := download(url)
 	if err != nil {
 		return err
@@ -120,6 +127,13 @@ func gzExtractURL(url, target string) error {
 	zr, err := gzip.NewReader(resp.Body)
 	if err != nil {
 		return err
+	}
+
+	if overwrite {
+		err = os.RemoveAll(target)
+		if err != nil {
+			return err
+		}
 	}
 
 	out, err := os.Create(target)
@@ -141,13 +155,18 @@ func gzExtractURL(url, target string) error {
 	return nil
 }
 
-func xzExtractURL(url, target string) error {
+func xzExtractURL(url, target string, overwrite bool) error {
 	// download to file, no native xz compression library in Go
-	if err := Download(url, target+".xz"); err != nil {
+	if err := Download(url, target+".xz", overwrite); err != nil {
 		return err
 	}
 
-	return RunCommandSilent("unxz", "-T", "0", target+".xz")
+	args := []string{"-T", "0", target + ".xz"}
+	if overwrite {
+		args = append([]string{"-f"}, args...)
+	}
+
+	return RunCommandSilent("unxz", args...)
 }
 
 // RunCommandSilent runs the given command with args and does not print output
@@ -219,7 +238,7 @@ func TarExtractURL(url, target string) error {
 	if err != nil {
 		return err
 	}
-	if err = Download(url, target); err != nil {
+	if err = Download(url, target, false); err != nil {
 		return err
 	}
 
