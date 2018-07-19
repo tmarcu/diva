@@ -54,15 +54,11 @@ func runUCCheck(cmd *cobra.Command, args []string) {
 	v := ucFlags.version
 	if v == 0 {
 		v, err = helpers.GetLatestVersion(conf.UpstreamURL)
-		if err != nil {
-			helpers.Fail(err)
-		}
+		helpers.FailIfErr(err)
 	}
 
 	results, err := UCCheck(v, ucFlags.recursive)
-	if err != nil {
-		helpers.Fail(err)
-	}
+	helpers.FailIfErr(err)
 
 	if results.Failed > 0 {
 		os.Exit(1)

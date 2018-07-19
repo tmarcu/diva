@@ -60,9 +60,7 @@ var conf *config.Config
 func initConfig() {
 	var err error
 	conf, err = config.ReadConfig(rootCmdFlags.configPath)
-	if err != nil {
-		helpers.Fail(err)
-	}
+	helpers.FailIfErr(err)
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

@@ -241,10 +241,13 @@ func PrintComplete(message string, fmts ...interface{}) {
 	fmt.Fprintln(os.Stderr, fmt.Sprintf(fmt.Sprintf("    %s", message), fmts...))
 }
 
-// Fail prints the error and exits the program with an error code
-func Fail(err error) {
-	fmt.Fprintf(os.Stderr, "%s: ERROR: %s\n", os.Args[0], err)
-	os.Exit(1)
+// FailIfErr prints the error and exits the program with an error code if err
+// is not nil
+func FailIfErr(err error) {
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s: ERROR: %s\n", os.Args[0], err)
+		os.Exit(1)
+	}
 }
 
 // GetLatestVersion returns the version value at upstreamURL/latest or an error

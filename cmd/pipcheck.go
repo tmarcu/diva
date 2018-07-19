@@ -49,15 +49,13 @@ local configuration and <version>.`,
 
 func runPipCheck(cmd *cobra.Command, args []string) {
 	if pipFlags.version == "" && pipFlags.path == "" {
-		helpers.Fail(errors.New("must supply either --version or --path argument"))
+		helpers.FailIfErr(errors.New("must supply either --version or --path argument"))
 	}
 
 	p := pipFlags.path
 	if p == "" {
 		c, err := config.ReadConfig("")
-		if err != nil {
-			helpers.Fail(err)
-		}
+		helpers.FailIfErr(err)
 		p = filepath.Join(c.Mixer.MixWorkSpace, "update/image", pipFlags.version, "full")
 	}
 

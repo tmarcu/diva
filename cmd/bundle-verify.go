@@ -60,7 +60,7 @@ to correctly document data, and are defaulted to 0, and "clear", respectively.`,
 
 func runVerifyBundle(cmd *cobra.Command, args []string) {
 	if bundleFlags.repoURL == "" {
-		helpers.Fail(errors.New("must supply a --repourl argument"))
+		helpers.FailIfErr(errors.New("must supply a --repourl argument"))
 	}
 
 	repo := pkginfo.Repo{
@@ -71,32 +71,22 @@ func runVerifyBundle(cmd *cobra.Command, args []string) {
 	}
 
 	err := pkginfo.ImportAllRPMs(&repo)
-	if err != nil {
-		helpers.Fail(err)
-	}
+	helpers.FailIfErr(err)
 
 	err = diva.GetLatestBundles(conf, "")
-	if err != nil {
-		helpers.Fail(err)
-	}
+	helpers.FailIfErr(err)
 
 	result := diva.NewSuite("bundle-verify", "validate bundle correctness")
 	bundles, err := checkAndGetBundleDefinitions(result)
-	if err != nil {
-		helpers.Fail(err)
-	}
+	helpers.FailIfErr(err)
 
 	checkBundleHeaderTitleMatchesFile(bundles, result)
 
 	err = checkBundleComplete(&repo, bundles, result)
-	if err != nil {
-		helpers.Fail(err)
-	}
+	helpers.FailIfErr(err)
 
 	err = checkIfPundleDeletesExist(result)
-	if err != nil {
-		helpers.Fail(err)
-	}
+	helpers.FailIfErr(err)
 
 	if result.Failed > 0 {
 		os.Exit(1)

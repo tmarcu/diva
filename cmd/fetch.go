@@ -112,58 +112,38 @@ func init() {
 
 func runFetchAllCmd(cmd *cobra.Command, args []string) {
 	u, err := diva.GetUpstreamInfo(conf, allFlags.upstreamURL, allFlags.version, allFlags.recursive)
-	if err != nil {
-		helpers.Fail(err)
-	}
+	helpers.FailIfErr(err)
 
 	err = diva.FetchRepo(u)
-	if err != nil {
-		helpers.Fail(err)
-	}
+	helpers.FailIfErr(err)
 
 	err = diva.GetLatestBundles(conf, allFlags.bundleURL)
-	if err != nil {
-		helpers.Fail(err)
-	}
+	helpers.FailIfErr(err)
 
 	err = diva.FetchUpdate(u)
-	if err != nil {
-		helpers.Fail(err)
-	}
+	helpers.FailIfErr(err)
 }
 
 func runFetchBundlesCmd(cmd *cobra.Command, args []string) {
 	err := diva.GetLatestBundles(conf, allFlags.bundleURL)
-	if err != nil {
-		helpers.Fail(err)
-	}
+	helpers.FailIfErr(err)
 }
 
 func runFetchRepoCmd(cmd *cobra.Command, args []string) {
 	u, err := diva.GetUpstreamInfo(conf, allFlags.upstreamURL, allFlags.version, allFlags.recursive)
-	if err != nil {
-		helpers.Fail(err)
-	}
+	helpers.FailIfErr(err)
 
 	err = diva.FetchRepo(u)
-	if err != nil {
-		helpers.Fail(err)
-	}
+	helpers.FailIfErr(err)
 }
 
 func runFetchUpdateCmd(cmd *cobra.Command, args []string) {
 	u, err := diva.GetUpstreamInfo(conf, allFlags.upstreamURL, allFlags.version, allFlags.recursive)
-	if err != nil {
-		helpers.Fail(err)
-	}
+	helpers.FailIfErr(err)
 
 	err = diva.FetchUpdate(u)
-	if err != nil {
-		helpers.Fail(err)
-	}
+	helpers.FailIfErr(err)
 
 	err = diva.FetchUpdateFiles(u)
-	if err != nil {
-		helpers.Fail(err)
-	}
+	helpers.FailIfErr(err)
 }
