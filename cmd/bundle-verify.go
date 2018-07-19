@@ -72,8 +72,10 @@ func runVerifyBundle(cmd *cobra.Command, args []string) {
 		Type:    "B",
 	}
 
+	helpers.PrintBegin("Importing RPMs from %s", bundleFlags.repoURL)
 	err := pkginfo.ImportAllRPMs(&repo, bundleFlags.update)
 	helpers.FailIfErr(err)
+	helpers.PrintComplete("RPMs imported successfully")
 
 	err = diva.GetLatestBundles(conf, "")
 	helpers.FailIfErr(err)

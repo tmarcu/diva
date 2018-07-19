@@ -27,6 +27,7 @@ import (
 func ImportAllRPMs(repo *Repo, update bool) error {
 	var err error
 	var path string
+
 	if path, err = GetRepoFiles(repo, update); err != nil {
 		return err
 	}
