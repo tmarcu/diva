@@ -17,7 +17,6 @@ package cmd
 import (
 	"bufio"
 	"errors"
-	"fmt"
 	"os"
 	"regexp"
 	"strings"
@@ -81,21 +80,30 @@ func runVerifyBundle(cmd *cobra.Command, args []string) {
 		Type:    "B",
 	}
 
-	if err := pkginfo.ImportAllRPMs(&repo); err != nil {
+	err := pkginfo.ImportAllRPMs(&repo)
+	if err != nil {
 		helpers.Fail(err)
 	}
 
-	if err := diva.GetLatestBundles(c, ""); err != nil {
+	err = diva.GetLatestBundles(c, "")
+	if err != nil {
 		helpers.Fail(err)
 	}
 
-	result := &diva.Results{Name: "bundle-verify"}
-	bundles := checkAndGetBundleDefinitions(result)
+	result := diva.NewSuite("bundle-verify", "validate bundle correctness")
+	bundles, err := checkAndGetBundleDefinitions(result)
+	if err != nil {
+		helpers.Fail(err)
+	}
+
 	checkBundleHeaderTitleMatchesFile(bundles, result)
-	checkBundleComplete(&repo, bundles, result)
-	checkIfPundleDeletesExist(result)
 
-	err := result.Print(os.Stdout)
+	err = checkBundleComplete(&repo, bundles, result)
+	if err != nil {
+		helpers.Fail(err)
+	}
+
+	err = checkIfPundleDeletesExist(result)
 	if err != nil {
 		helpers.Fail(err)
 	}
@@ -105,9 +113,7 @@ func runVerifyBundle(cmd *cobra.Command, args []string) {
 	}
 }
 
-func checkAndGetBundleDefinitions(result *diva.Results) bundle.Set {
-	name := "bundle definition creation"
-	desc := "Create bundle definitions, while checking for correctness, and no include loops."
+func checkAndGetBundleDefinitions(result *diva.Results) (bundle.Set, error) {
 
 	bundles := make(bundle.Set)
 	var err error
@@ -122,54 +128,44 @@ func checkAndGetBundleDefinitions(result *diva.Results) bundle.Set {
 		}
 	}
 
-	result.Add(name, desc, err, false)
-	return bundles
+	result.Ok(err == nil, "no include loops")
+	return bundles, err
 }
 
 func checkBundleHeaderTitleMatchesFile(bundles bundle.Set, result *diva.Results) {
-	name := "bundle filename and title matching"
-	desc := "Ensure that the bundle header 'TITLE' and bundle file name are equal."
-
+	var failures []string
 	for filename, bundle := range bundles {
 		if filename != bundle.Header.Title {
-			err := fmt.Errorf("Bundle filename '%s' does not match Header title '%s'", filename, bundle.Header.Title)
-			result.Add(name, desc, err, false)
-			return
+			failures = append(failures, bundle.Name)
 		}
 	}
-	result.Add(name, desc, nil, false)
+	result.Ok(len(failures) == 0, "'TITLE' headers match bundle file names")
+	if len(failures) > 0 {
+		result.Diagnostic("mismatched headers:\n" + strings.Join(failures, "\n"))
+	}
 }
 
-func checkBundleComplete(repo *pkginfo.Repo, bundles bundle.Set, result *diva.Results) {
-	name := "bundle package repo existence"
-	desc := "Verify named packages from bundles exist in a repo"
-
-	var missing []string
+func checkBundleComplete(repo *pkginfo.Repo, bundles bundle.Set, result *diva.Results) error {
 	var err error
 	var rpm *pkginfo.RPM
+	var failures []string
 
 	for _, bundle := range bundles {
 		for pkg := range bundle.DirectPackages {
 			rpm, err = pkginfo.GetRPM(repo, pkg)
-			if err != nil {
-				result.Add(name, desc, err, false)
-				return
-			}
-			if rpm == nil {
-				missing = append(missing, fmt.Sprintf("%s from %s not found", pkg, bundle.Name))
+			if rpm == nil || err != nil {
+				failures = append(failures, pkg)
 			}
 		}
 	}
-	if len(missing) > 0 {
-		err = fmt.Errorf(strings.Join(missing, "\n"))
+	result.Ok(len(failures) == 0, "all packages found in repo")
+	if len(failures) > 0 {
+		result.Diagnostic("missing packages:\n" + strings.Join(failures, "\n"))
 	}
-	result.Add(name, desc, err, false)
+	return nil
 }
 
-func checkIfPundleDeletesExist(result *diva.Results) {
-	name := "package bundle delete"
-	desc := "Determine whether a package bundle was deleted"
-
+func checkIfPundleDeletesExist(result *diva.Results) error {
 	var deleted []string
 	var err error
 
@@ -177,18 +173,19 @@ func checkIfPundleDeletesExist(result *diva.Results) {
 		"git", "-C", c.Paths.BundleDefsRepo, "diff", "latest..HEAD", "packages",
 	)
 	if err != nil {
-		result.Add(name, desc, err, false)
-		return
+		return err
 	}
 
 	scanner := bufio.NewScanner(output)
 	for scanner.Scan() {
-		if matches := regexp.MustCompile(`^-[^-]`).FindStringSubmatch(scanner.Text()); len(matches) > 0 {
-			deleted = append(deleted, fmt.Sprintf("Pundle delete detected: %s", scanner.Text()))
+		matches := regexp.MustCompile(`^-[^-]`).FindStringSubmatch(scanner.Text())
+		if len(matches) > 0 {
+			deleted = append(deleted, scanner.Text())
 		}
 	}
+	result.Ok(len(deleted) == 0, "package bundles not deleted in release")
 	if len(deleted) > 0 {
-		err = fmt.Errorf(strings.Join(deleted, "\n"))
+		result.Diagnostic("deleted package bundles:\n" + strings.Join(deleted, "\n"))
 	}
-	result.Add(name, desc, err, false)
+	return nil
 }
