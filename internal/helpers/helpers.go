@@ -76,7 +76,7 @@ func Download(url, filename string, overwrite bool) error {
 
 	if overwrite {
 		err := os.Remove(filename)
-		if err != nil {
+		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
 	}
