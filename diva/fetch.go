@@ -221,7 +221,6 @@ func FetchUpdateFiles(u UInfo) error {
 	fChan := make(chan finfo)
 	errChan := make(chan error, nworkers)
 
-	retried := false
 	for i := 0; i < nworkers; i++ {
 		go func() {
 			defer wg.Done()
@@ -232,21 +231,10 @@ func FetchUpdateFiles(u UInfo) error {
 				}
 
 				f.err = helpers.TarExtractURL(f.url, f.out)
-				err := os.Remove(f.out)
-				if err != nil {
-					fmt.Println(err)
-				}
+				_ = os.Remove(f.out)
 
 				if f.err != nil {
-					fmt.Println(f.err)
-					if !retried {
-						fmt.Println("retrying download...")
-						retried = true
-						i--
-					} else {
-						fmt.Println("unable to download, continuing...")
-						errChan <- f.err
-					}
+					errChan <- f.err
 				}
 			}
 		}()
