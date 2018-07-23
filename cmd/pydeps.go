@@ -27,27 +27,28 @@ import (
 )
 
 func init() {
-	checkCmd.AddCommand(pipCmd)
-	pipCmd.Flags().StringVarP(&pipFlags.path, "path", "p", "", "path to full chroot")
-	pipCmd.Flags().StringVarP(&pipFlags.version, "version", "v", "", "version to check")
+	checkCmd.AddCommand(pyDepsCmd)
+	pyDepsCmd.Flags().StringVarP(&pipFlags.path, "path", "p", "", "path to full chroot")
+	pyDepsCmd.Flags().StringVarP(&pipFlags.version, "version", "v", "", "version to check")
 }
 
-type pipCmdFlags struct {
+type pyDepsCmdFlags struct {
 	version string
 	path    string
 }
 
-var pipFlags pipCmdFlags
+var pipFlags pyDepsCmdFlags
 
-var pipCmd = &cobra.Command{
-	Use:   "pipcheck",
+var pyDepsCmd = &cobra.Command{
+	Use:   "pydeps",
 	Short: "Run pip check against full chroot",
 	Long: `Run pip check against full chroot at <path> or constructed using
-local configuration and <version>.`,
-	Run: runPipCheck,
+local configuration and <version>. Verifies installed packages have compatible
+dependencies.`,
+	Run: runCheckPyDeps,
 }
 
-func runPipCheck(cmd *cobra.Command, args []string) {
+func runCheckPyDeps(cmd *cobra.Command, args []string) {
 	if pipFlags.version == "" && pipFlags.path == "" {
 		helpers.FailIfErr(errors.New("must supply either --version or --path argument"))
 	}
@@ -59,15 +60,15 @@ func runPipCheck(cmd *cobra.Command, args []string) {
 		p = filepath.Join(c.Mixer.MixWorkSpace, "update/image", pipFlags.version, "full")
 	}
 
-	results := PipCheck(p)
+	results := CheckPyDeps(p)
 	if results.Failed > 0 {
 		os.Exit(1)
 	}
 }
 
-// PipCheck runs 'pip check' in a chroot at path
-func PipCheck(path string) *diva.Results {
-	name := "pipcheck"
+// CheckPyDeps runs 'pip check' in a chroot at path
+func CheckPyDeps(path string) *diva.Results {
+	name := "Python dependencies"
 	desc := "run pip check in full build root to check for missing python requirements"
 	r := diva.NewSuite(name, desc)
 	r.Header(0)
