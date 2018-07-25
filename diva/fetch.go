@@ -50,6 +50,8 @@ func GetUpstreamInfo(conf *config.Config, upstreamURL string, version string, re
 	}
 
 	u.Update = update
+	// no support yet for modifying cache location via commandline
+	u.CacheLoc = conf.Paths.CacheLocation
 
 	if version != "" {
 		u.Ver = version
@@ -70,8 +72,6 @@ func GetUpstreamInfo(conf *config.Config, upstreamURL string, version string, re
 	}
 
 	u.Ver = strings.Trim(string(body), "\n")
-	// no support yet for modifying cache location via commandline
-	u.CacheLoc = conf.Paths.CacheLocation
 
 	if !recursive {
 		var mv int
