@@ -273,3 +273,27 @@ func GetAllPackagesForBundle(name, bundlesDir string) ([]string, error) {
 	sort.Strings(sorted)
 	return sorted, nil
 }
+
+// GetAllPackagesForAllBundles gets every package used by the bundle definitions.
+// It returns a sorted slice of package names excluding any duplicates.
+func GetAllPackagesForAllBundles(bundlesDir string) ([]string, error) {
+	allPackages := make(map[string]bool)
+
+	bundles, err := GetAll(bundlesDir)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, bundle := range bundles {
+		for p := range bundle.AllPackages {
+			allPackages[p] = true
+		}
+	}
+
+	allPackageNames := []string{}
+	for pkg := range allPackages {
+		allPackageNames = append(allPackageNames, pkg)
+	}
+	sort.Strings(allPackageNames)
+	return allPackageNames, nil
+}

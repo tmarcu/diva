@@ -637,3 +637,45 @@ func TestGetAllPackagesForOneBundle(t *testing.T) {
 		})
 	}
 }
+
+func TestGetAllPackagesForAllBundles(t *testing.T) {
+	testData := newTestInstance(t)
+	defer testData.teardown() // cleanup testdir
+
+	bundleAdds := []struct {
+		name    string
+		content []string
+	}{
+		{"koji",
+			[]string{"include(package-utils)", "include(web-server-basic)",
+				"koji", "koji-extras", "mash", "mod_wsgi", "nfs-utils", "postgresql"},
+		},
+		{"package-utils",
+			[]string{"include(python3-basic)", "createrepo_c", "dnf", "mock"},
+		},
+		{"web-server-basic",
+			[]string{"httpd", "nginx"},
+		},
+		{"python3-basic",
+			[]string{"include(random-pundle)", "clr-python-timestamp", "glibc-lib-avx2", "virtualenv-python3"},
+		},
+	}
+
+	testData.addBundle("random-pundle", "packages", "random-pundle")
+
+	for _, bundle := range bundleAdds {
+		testData.addBundle(bundle.name, filepath.Join("bundles", bundle.name), bundle.content...)
+	}
+
+	expectedAllPackagesList := []string{"bash-bin", "ca-certs-static",
+		"clr-power-tweaks", "clr-python-timestamp", "clr-systemd-config",
+		"createrepo_c", "dnf", "glibc-lib-avx2", "httpd", "koji", "koji-extras",
+		"mash", "mock", "mod_wsgi", "nfs-utils", "nginx", "postgresql",
+		"random-pundle", "util-linux-bin", "virtualenv-python3",
+	}
+
+	actualPackages, err := GetAllPackagesForAllBundles(testData.testdir)
+	if err != nil || !reflect.DeepEqual(expectedAllPackagesList, actualPackages) {
+		t.Error(deep.Equal(expectedAllPackagesList, actualPackages))
+	}
+}
