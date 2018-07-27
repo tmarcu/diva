@@ -558,3 +558,82 @@ func TestGetIncludesForBundle(t *testing.T) {
 		})
 	}
 }
+
+func TestGetAllPackagesForOneBundle(t *testing.T) {
+	testData := newTestInstance(t)
+	defer testData.teardown() // cleanup testdir
+
+	bundleAdds := []struct {
+		name    string
+		content []string
+	}{
+		{"koji",
+			[]string{"include(package-utils)", "include(web-server-basic)",
+				"koji", "koji-extras", "mash", "mod_wsgi", "nfs-utils", "postgresql"},
+		},
+		{"package-utils",
+			[]string{"include(python3-basic)", "createrepo_c", "dnf", "mock"},
+		},
+		{"web-server-basic",
+			[]string{"httpd", "nginx"},
+		},
+		{"python3-basic",
+			[]string{"include(random-pundle)", "clr-python-timestamp", "glibc-lib-avx2", "virtualenv-python3"},
+		},
+	}
+
+	testData.addBundle("random-pundle", "packages", "random-pundle")
+
+	for _, bundle := range bundleAdds {
+		testData.addBundle(bundle.name, filepath.Join("bundles", bundle.name), bundle.content...)
+	}
+
+	testCases := []struct {
+		bundleName       string
+		expectedPackages []string
+	}{
+		{"koji",
+			[]string{
+				"createrepo_c", "dnf", "httpd", "koji", "koji-extras", "mash", "mod_wsgi",
+				"mock", "nfs-utils", "nginx", "postgresql", "clr-python-timestamp",
+				"glibc-lib-avx2", "virtualenv-python3", "random-pundle",
+			},
+		},
+		{"package-utils",
+			[]string{
+				"createrepo_c", "dnf", "mock", "clr-python-timestamp", "glibc-lib-avx2",
+				"virtualenv-python3", "random-pundle",
+			},
+		},
+		{"web-server-basic",
+			[]string{
+				"httpd", "nginx",
+			},
+		},
+		{"python3-basic",
+			[]string{
+				"clr-python-timestamp", "glibc-lib-avx2", "virtualenv-python3", "random-pundle",
+			},
+		},
+		{"random-pundle",
+			[]string{
+				"random-pundle",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		// add os-core packages to all bundles
+		for pkg := range core.AllPackages {
+			tc.expectedPackages = append(tc.expectedPackages, pkg)
+		}
+		sort.Strings(tc.expectedPackages)
+
+		t.Run(tc.bundleName, func(t *testing.T) {
+			actualPackages, err := GetAllPackagesForBundle(tc.bundleName, testData.testdir)
+			if err != nil || !reflect.DeepEqual(tc.expectedPackages, actualPackages) {
+				t.Error(deep.Equal(tc.expectedPackages, actualPackages))
+			}
+		})
+	}
+}
