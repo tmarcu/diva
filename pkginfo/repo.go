@@ -15,11 +15,13 @@
 package pkginfo
 
 import (
+	"path/filepath"
+
 	"github.com/gomodule/redigo/redis"
 )
 
 // PopulateRepo populates the repo struct with all RPMs from the database
-func PopulateRepo(repo *Repo) error {
+func PopulateRepo(repo *Repo, cacheLoc string) error {
 	var err error
 	var c redis.Conn
 	if c, err = initRedis(0); err != nil {
@@ -29,5 +31,15 @@ func PopulateRepo(repo *Repo) error {
 		_ = c.Close()
 	}()
 
+	if repo.CacheDir == "" {
+		repo.CacheDir = filepath.Join(
+			cacheLoc,
+			"rpms",
+			repo.Name,
+			repo.Version,
+			repo.Type,
+			"packages",
+		)
+	}
 	return getRepoRedis(c, repo)
 }

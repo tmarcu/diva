@@ -66,7 +66,7 @@ func runVerifyBundle(cmd *cobra.Command, args []string) {
 	}
 
 	helpers.PrintBegin("Populating repo")
-	err := pkginfo.PopulateRepo(&repo)
+	err := pkginfo.PopulateRepo(&repo, conf.Paths.CacheLocation)
 	helpers.FailIfErr(err)
 	helpers.PrintComplete("Repo populated successfully")
 

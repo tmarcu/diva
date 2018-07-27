@@ -21,6 +21,7 @@ type Repo struct {
 	Name     string
 	Version  string
 	Type     string
+	CacheDir string
 	Priority uint
 	Packages []*RPM
 }
