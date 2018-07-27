@@ -549,26 +549,11 @@ func TestGetIncludesForBundle(t *testing.T) {
 		},
 	}
 
-	for _, bundle := range testCases {
-		for pkg := range core.AllPackages {
-			bundle.expectedIncludes = append(bundle.expectedIncludes, pkg)
-		}
-		sort.Strings(bundle.expectedIncludes)
-	}
-
 	for _, tc := range testCases {
 		t.Run(tc.bundleName, func(t *testing.T) {
 			actualIncludes, err := GetIncludesForBundle(tc.bundleName, testData.testdir)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(tc.expectedIncludes) != len(actualIncludes) {
-				t.Fatal(fmt.Errorf("Includes don't match; they're different lengths"))
-			}
-			for i, inc := range actualIncludes {
-				if inc != tc.expectedIncludes[i] {
-					t.Fatal(fmt.Errorf("Includes don't match at index %d", i))
-				}
+			if err != nil || !reflect.DeepEqual(tc.expectedIncludes, actualIncludes) {
+				t.Error(deep.Equal(tc.expectedIncludes, actualIncludes))
 			}
 		})
 	}
