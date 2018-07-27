@@ -16,7 +16,6 @@ package cmd
 
 import (
 	"bufio"
-	"errors"
 	"os"
 	"regexp"
 	"strings"
@@ -29,11 +28,9 @@ import (
 )
 
 type bundleCmdFlags struct {
-	repoURL  string
 	repoName string
 	version  string
 	bundle   string
-	update   bool
 }
 
 // flags passed in as args
@@ -41,11 +38,9 @@ var bundleFlags bundleCmdFlags
 
 func init() {
 	checkCmd.AddCommand(verifyBundlesCmd)
-	verifyBundlesCmd.Flags().StringVarP(&bundleFlags.repoURL, "repourl", "u", "", "Url to repo")
 	verifyBundlesCmd.Flags().StringVarP(&bundleFlags.repoName, "reponame", "n", "clear", "Name of repo")
 	verifyBundlesCmd.Flags().StringVarP(&bundleFlags.version, "version", "v", "0", "Version to check")
 	verifyBundlesCmd.Flags().StringVarP(&bundleFlags.bundle, "bundle", "b", "", "Bundle to check")
-	verifyBundlesCmd.Flags().BoolVar(&bundleFlags.update, "update", false, "Update repo RPMs")
 }
 
 var verifyBundlesCmd = &cobra.Command{
@@ -54,28 +49,25 @@ var verifyBundlesCmd = &cobra.Command{
 	Long: `Verify bundles are complete by checking that all named packages within
 bundle and package bundle files can be found in the configured repo. It also
 ensures no include loops exist, and that the bundle filename matches the bundle
-definition header title. A <path> to a directory of rpms must be passed, and
-will run against all bundles or a <bundle>. A <version> and <reponame> can used
-to correctly document data, and are defaulted to 0, and "clear", respectively.`,
+definition header TITLE. For a <bundle> or the default of all bundles. An
+optional <reponame> and <version> may be used to specify a repo the bundle
+packages completeness will run against with "clear" and "0" as the defaults.`,
 	Run: runVerifyBundle,
 }
 
 func runVerifyBundle(cmd *cobra.Command, args []string) {
-	if bundleFlags.repoURL == "" {
-		helpers.FailIfErr(errors.New("must supply a --repourl argument"))
-	}
 
 	repo := pkginfo.Repo{
-		URI:     bundleFlags.repoURL,
+		URI:     "",
 		Name:    bundleFlags.repoName,
 		Version: bundleFlags.version,
 		Type:    "B",
 	}
 
-	helpers.PrintBegin("Importing RPMs from %s", bundleFlags.repoURL)
-	err := pkginfo.ImportAllRPMs(&repo, bundleFlags.update)
+	helpers.PrintBegin("Populating repo")
+	err := pkginfo.PopulateRepo(&repo)
 	helpers.FailIfErr(err)
-	helpers.PrintComplete("RPMs imported successfully")
+	helpers.PrintComplete("Repo populated successfully")
 
 	err = diva.GetLatestBundles(conf, "")
 	helpers.FailIfErr(err)
