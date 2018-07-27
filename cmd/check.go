@@ -17,7 +17,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"strconv"
 
 	"github.com/clearlinux/diva/bloatcheck"
 	"github.com/clearlinux/diva/diva"
@@ -41,19 +40,21 @@ var checkCmd = &cobra.Command{
 	Long:  `Run various checks against distribution content or metadata`,
 }
 
-func checkSize(name *string, sizeDiff, size float64) bool {
+func checkSize(name *string, sizeDiff, size float64) (float64, bool) {
 	if _, ok := highPrioBundles[*name]; ok {
 		// High priority bundles cannot increase by more than 10% because they
 		// may affect many other bundles and minimal installations -> error out
-		if sizeDiff > (size * (bloatFlags.failCap / 100.0)) {
-			helpers.FailIfErr(fmt.Errorf("%s has increased by more than %0.2f%%", *name, bloatFlags.failCap))
+		sizeChange := size * (bloatFlags.failCap / 100.0)
+		if sizeDiff > sizeChange {
+			return sizeDiff, true
 		}
 	}
 	// Increase of warning cap needs to be flagged, but not fatal
-	if sizeDiff > (size * (bloatFlags.warningCap / 100.0)) {
-		return true
+	sizeChange := size * (bloatFlags.warningCap / 100.0)
+	if sizeDiff > sizeChange {
+		return sizeDiff, true
 	}
-	return false
+	return 0, false
 }
 
 func runBloatCheck(r *diva.Results, u diva.UInfo, args []string) error {
@@ -110,8 +111,15 @@ func runBloatCheck(r *diva.Results, u diva.UInfo, args []string) error {
 			continue
 		}
 		sizeDiff = toBundleSizes[bundle] - size
-		desc = bundle + " size did not change by more than " + strconv.FormatFloat(bloatFlags.warningCap, 'f', -1, 64) + "%"
-		ret := checkSize(&bundle, float64(sizeDiff), float64(size))
+		changeCap := bloatFlags.warningCap
+		_, ret := checkSize(&bundle, float64(sizeDiff), float64(size))
+
+		percentDiff := (float64(toBundleSizes[bundle]) - float64(fromBundleSizes[bundle])) / float64(fromBundleSizes[bundle]) * 100
+		pChange := fmt.Sprintf("%3.2f%%", percentDiff)
+		if _, ok := highPrioBundles[bundle]; ok {
+			changeCap = bloatFlags.failCap
+		}
+		desc = fmt.Sprintf("%s size did not change by more than %2.0f%% -> %s", bundle, changeCap, pChange)
 		r.Ok(!ret, desc)
 	}
 	return nil
