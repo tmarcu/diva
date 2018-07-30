@@ -221,11 +221,17 @@ func RunCommandOutput(cmdname string, args ...string) (*bytes.Buffer, error) {
 
 // PullRepo runs 'git pull' in the repo at repoPath
 func PullRepo(repoPath string) error {
+	if err := os.MkdirAll(repoPath, 0755); err != nil {
+		return err
+	}
 	return RunCommandSilent("git", "-C", repoPath, "pull")
 }
 
 // CloneRepo runs 'git clone' of gitURL to the repoParent directory
 func CloneRepo(gitURL, repoParent string) error {
+	if err := os.MkdirAll(repoParent, 0755); err != nil {
+		return err
+	}
 	return RunCommandSilent("git", "-C", repoParent, "clone", gitURL)
 }
 

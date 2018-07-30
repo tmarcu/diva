@@ -155,6 +155,9 @@ func buildPackageURLs(repo *Repo, flistsPath, workingDir string, update bool) ([
 	}
 
 	cacheDir := filepath.Join(workingDir, "packages")
+	if err = os.MkdirAll(cacheDir, 0755); err != nil {
+		return []string{}, err
+	}
 	cachedRPMs, err := rpm.OpenPackageFiles(cacheDir)
 	if err != nil {
 		return []string{}, err
