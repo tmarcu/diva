@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"regexp"
 	"strings"
@@ -130,7 +131,7 @@ func checkBundleComplete(repo *pkginfo.Repo, bundles bundle.Set, result *diva.Re
 		for pkg := range bundle.DirectPackages {
 			rpm, err = pkginfo.GetRPM(repo, pkg)
 			if rpm == nil || err != nil {
-				failures = append(failures, pkg)
+				failures = append(failures, fmt.Sprintf("%s from bundle %s", pkg, bundle.Name))
 			}
 		}
 	}
