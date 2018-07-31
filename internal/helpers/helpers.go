@@ -219,6 +219,11 @@ func RunCommandOutput(cmdname string, args ...string) (*bytes.Buffer, error) {
 	return &outBuf, nil
 }
 
+// CheckoutRepoTag runs 'git checkout' for the specified tag
+func CheckoutRepoTag(repoPath, tag string) error {
+	return RunCommandSilent("git", "-C", repoPath, "checkout", "tags/"+tag)
+}
+
 // PullRepo runs 'git pull' in the repo at repoPath
 func PullRepo(repoPath string) error {
 	if err := os.MkdirAll(repoPath, 0755); err != nil {

@@ -97,6 +97,26 @@ func FetchRepo(u UInfo) error {
 	return nil
 }
 
+// GetBundleAtTag clones the repo if it doesn't exist, and then checks
+// out the tag.
+func GetBundleAtTag(conf *config.Config, url, tag string) error {
+	if url == "" {
+		url = conf.BundleDefsURL
+	}
+
+	if _, err := os.Stat(conf.Paths.BundleDefsRepo); err != nil {
+		helpers.PrintBegin("cloning latest bundle definitions")
+		err := helpers.CloneRepo(url, filepath.Dir(conf.Paths.BundleDefsRepo))
+		if err != nil {
+			return err
+		}
+		helpers.PrintComplete("bundle repo cloned to %s", conf.Paths.BundleDefsRepo)
+		return nil
+	}
+
+	return helpers.CheckoutRepoTag(conf.Paths.BundleDefsRepo, tag)
+}
+
 // GetLatestBundles clones or pulls the latest clr-bundles definitions to
 // conf.Paths.BundleDefsRepo
 func GetLatestBundles(conf *config.Config, url string) error {

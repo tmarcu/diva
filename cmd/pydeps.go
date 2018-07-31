@@ -133,18 +133,15 @@ func createFullChroot(path string) error {
 		return err
 	}
 
-	// Get latest bundles directory and if a version is specified checkout that tag
-	err = diva.GetLatestBundles(conf, "")
+	// Get the latest bundle definitions if no version passed, otherwise checkout
+	// the version tag
+	if pipFlags.version == "0" {
+		err = diva.GetLatestBundles(conf, "")
+	} else {
+		err = diva.GetBundleAtTag(conf, "", pipFlags.version)
+	}
 	if err != nil {
 		return err
-	}
-
-	if pipFlags.version != "0" {
-		tagArgs := []string{"-C", conf.Paths.BundleDefsRepo, "checkout", "tags/" + pipFlags.version}
-		err = helpers.RunCommandSilent("git", tagArgs...)
-		if err != nil {
-			return err
-		}
 	}
 
 	// get the slice of all packages from all bundles for chroot install
