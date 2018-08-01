@@ -16,8 +16,6 @@ package diva
 
 import (
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -59,19 +57,12 @@ func GetUpstreamInfo(conf *config.Config, upstreamURL string, version string, re
 		return u, nil
 	}
 
-	resp, err := http.Get(u.URL + "/latest")
+	// get latest version
+	var err error
+	u.Ver, err = helpers.GetLatestVersion(u.URL)
 	if err != nil {
 		return u, err
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return u, err
-	}
-
-	u.Ver = strings.Trim(string(body), "\n")
 
 	if !recursive {
 		var mv int

@@ -53,7 +53,7 @@ func runUCCheck(cmd *cobra.Command, args []string) {
 	var err error
 	v := ucFlags.version
 	if v == 0 {
-		v, err = helpers.GetLatestVersion(conf.UpstreamURL)
+		v, err = helpers.GetLatestVersionUint(conf.UpstreamURL)
 		helpers.FailIfErr(err)
 	}
 

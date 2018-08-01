@@ -293,19 +293,28 @@ func FailIfErr(err error) {
 
 // GetLatestVersion returns the version value at upstreamURL/latest or an error
 // if unable to do so.
-func GetLatestVersion(upstreamURL string) (uint, error) {
+func GetLatestVersion(upstreamURL string) (string, error) {
 	resp, err := http.Get(upstreamURL + "/latest")
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
+		return "", err
+	}
+	return strings.Trim(string(body), "\n"), nil
+}
+
+// GetLatestVersionUint is a wrapper for GetLatestVersion that converts the
+// string output to a uint.
+func GetLatestVersionUint(upstreamURL string) (uint, error) {
+	versionString, err := GetLatestVersion(upstreamURL)
+	if err != nil {
 		return 0, err
 	}
-	vStr := strings.Trim(string(body), "\n")
-	ver, err := strconv.ParseUint(vStr, 10, 32)
+	ver, err := strconv.ParseUint(versionString, 10, 32)
 	return uint(ver), err
 }
