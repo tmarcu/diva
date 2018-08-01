@@ -287,24 +287,3 @@ func GetRepoFiles(repo *Repo, update bool) (string, error) {
 
 	return filepath.Join(workingDir, "packages"), downloadAllRPMs(packages, workingDir)
 }
-
-// GetUpstreamRepoFiles downloads all RPM packages from the RPM repo at
-// c.UpstreamURL by first paring the repo metadata. These packages are
-// downloaded to the c.CacheLocation/rpms/<version>/packages/ if they do not
-// already exist there.
-func GetUpstreamRepoFiles(version string) (string, error) {
-	var err error
-	c, err = config.ReadConfig("")
-	if err != nil {
-		return "", err
-	}
-	url := fmt.Sprintf("%s/releases/%s/clear/x86_64/os", c.UpstreamURL, version)
-	repo := &Repo{
-		URI:     url,
-		Name:    "clear",
-		Version: version,
-		Type:    "B",
-	}
-
-	return GetRepoFiles(repo, false)
-}
