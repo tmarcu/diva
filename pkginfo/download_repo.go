@@ -243,7 +243,7 @@ func downloadAllRPMs(packages []string, workingDir string) error {
 	return nil
 }
 
-// GetRepoFiles downloads all RPM packages from the RPM repo at the given
+// DownloadRepoFiles downloads all RPM packages from the RPM repo at the given
 // baseURL by first parsing the repo metadata. These packages are downloaded to
 // the c.CacheLocation/rpms/<version>/packages/ if they do not already exist
 // there.
