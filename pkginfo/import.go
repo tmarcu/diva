@@ -24,13 +24,8 @@ import (
 
 // ImportAllRPMs imports all RPMs from a given repository. It populates the
 // passed repo with all RPMs imported.
-func ImportAllRPMs(repo *Repo, update bool) error {
+func ImportAllRPMs(repo *Repo, update bool, path string) error {
 	var err error
-	var path string
-
-	if path, err = GetRepoFiles(repo, update); err != nil {
-		return err
-	}
 
 	if err = loadRepoFromCache(repo, path); err != nil {
 		return err
@@ -52,13 +47,8 @@ func ImportAllRPMs(repo *Repo, update bool) error {
 
 // ImportRPM imports a single RPM named <rpm> from a given repo. It adds the
 // RPM to the passed repo and returns the RPM struct.
-func ImportRPM(repo *Repo, rpm string, update bool) (*RPM, error) {
+func ImportRPM(repo *Repo, rpm, path string, update bool) (*RPM, error) {
 	var err error
-	// TODO: this is overkill
-	var path string
-	if path, err = GetRepoFiles(repo, update); err != nil {
-		return nil, err
-	}
 
 	if err = loadRepoFromCache(repo, path); err != nil {
 		return nil, err

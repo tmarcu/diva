@@ -84,7 +84,12 @@ func FetchRepo(u UInfo) error {
 	}
 
 	helpers.PrintBegin("fetching repo from %s", repo.URI)
-	path, err := pkginfo.GetRepoFiles(repo, u.Update)
+	path, err := pkginfo.DownloadRepoFiles(repo, u.Update)
+	if err != nil {
+		return err
+	}
+
+	err = pkginfo.ImportAllRPMs(repo, u.Update, path)
 	if err != nil {
 		return err
 	}

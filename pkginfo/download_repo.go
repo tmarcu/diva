@@ -247,7 +247,7 @@ func downloadAllRPMs(packages []string, workingDir string) error {
 // baseURL by first parsing the repo metadata. These packages are downloaded to
 // the c.CacheLocation/rpms/<version>/packages/ if they do not already exist
 // there.
-func GetRepoFiles(repo *Repo, update bool) (string, error) {
+func DownloadRepoFiles(repo *Repo, update bool) (string, error) {
 	var err error
 	c, err = config.ReadConfig("")
 	if err != nil {
