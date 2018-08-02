@@ -32,6 +32,7 @@ type pyDepsCmdFlags struct {
 	version   string
 	repoName  string
 	buildroot bool
+	bundleURL string
 }
 
 var pipFlags pyDepsCmdFlags
@@ -42,6 +43,8 @@ func init() {
 	pyDepsCmd.Flags().StringVarP(&pipFlags.version, "version", "v", "0", "version to check")
 	pyDepsCmd.Flags().StringVarP(&pipFlags.repoName, "reponame", "n", "clear", "Name of repo")
 	pyDepsCmd.Flags().BoolVar(&pipFlags.buildroot, "buildroot", false, "construct build root from repo")
+	pyDepsCmd.Flags().StringVarP(&pipFlags.bundleURL, "bundleurl", "b", "", "Upstream bundles url")
+
 }
 
 var pyDepsCmd = &cobra.Command{
@@ -133,12 +136,16 @@ func createFullChroot(path string) error {
 		return err
 	}
 
+	if pipFlags.bundleURL != "" {
+		conf.BundleDefsURL = pipFlags.bundleURL
+	}
+
 	// Get the latest bundle definitions if no version passed, otherwise checkout
 	// the version tag
 	if pipFlags.version == "0" {
 		err = diva.GetLatestBundles(conf, "")
 	} else {
-		err = diva.GetBundleAtTag(conf, "", pipFlags.version)
+		err = diva.GetBundlesAtTag(conf, pipFlags.version)
 	}
 	if err != nil {
 		return err

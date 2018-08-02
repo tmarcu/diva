@@ -97,16 +97,12 @@ func FetchRepo(u UInfo) error {
 	return nil
 }
 
-// GetBundleAtTag clones the repo if it doesn't exist, and then checks
+// GetBundlesAtTag clones the repo if it doesn't exist, and then checks
 // out the tag.
-func GetBundleAtTag(conf *config.Config, url, tag string) error {
-	if url == "" {
-		url = conf.BundleDefsURL
-	}
-
+func GetBundlesAtTag(conf *config.Config, tag string) error {
 	if _, err := os.Stat(conf.Paths.BundleDefsRepo); err != nil {
 		helpers.PrintBegin("cloning latest bundle definitions")
-		err := helpers.CloneRepo(url, filepath.Dir(conf.Paths.BundleDefsRepo))
+		err := helpers.CloneRepo(conf.BundleDefsURL, filepath.Dir(conf.Paths.BundleDefsRepo))
 		if err != nil {
 			return err
 		}
