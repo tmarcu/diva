@@ -67,7 +67,7 @@ func runBloatCheck(r *diva.Results, u diva.UInfo, args []string) error {
 		u.Ver = args[0]
 	}
 
-	err = diva.GetLatestBundles(conf, allFlags.bundleURL)
+	err = diva.GetBundleAtTag(conf, allFlags.bundleURL, u.Ver)
 	if err != nil {
 		return err
 	}
@@ -93,6 +93,11 @@ func runBloatCheck(r *diva.Results, u diva.UInfo, args []string) error {
 	// Get the larger of the two if it's out of order
 	u.Ver = helpers.Max(args[0], args[1])
 
+	// Need both version of bundle definitions
+	err = diva.GetBundleAtTag(conf, allFlags.bundleURL, u.Ver)
+	if err != nil {
+		return err
+	}
 	err = diva.FetchUpdate(u)
 	if err != nil {
 		return err
