@@ -86,39 +86,3 @@ func TestGetRepoRedis(t *testing.T) {
 		t.Errorf("expected file name f2 but got %s", p.Files[1].Name)
 	}
 }
-
-func TestStoreRPMInfoRedis(t *testing.T) {
-	conn := redigomock.NewConn()
-	cmds := []*redigomock.Cmd{
-		conn.GenericCommand("SET").Expect("ok"),
-		conn.GenericCommand("SADD").Expect("ok"),
-		conn.GenericCommand("HMSET").Expect("ok"),
-	}
-	repo := &Repo{
-		Name:    "testrepo",
-		Version: "100",
-		Type:    "B",
-		Packages: []*RPM{
-			{
-				Name:     "testpkg",
-				Version:  "100",
-				Release:  "1",
-				Provides: []string{"one", "two"},
-				Files: []*File{
-					{Name: "f1"},
-					{Name: "f2"},
-				},
-			},
-		},
-	}
-
-	if err := storeRepoInfoRedis(conn, repo); err != nil {
-		t.Fatal(err)
-	}
-
-	for _, c := range cmds {
-		if conn.Stats(c) == 0 {
-			t.Errorf("expected command %s %s was not called", c.Name, c.Args)
-		}
-	}
-}
