@@ -21,8 +21,9 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"sort"
 	"strings"
+
+	"github.com/clearlinux/diva/internal/helpers"
 )
 
 // Global variable to store os-core bundle definition
@@ -250,12 +251,7 @@ func GetIncludesForBundle(name, bundlesDir string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	var sorted []string
-	for p := range bundle.Includes {
-		sorted = append(sorted, p)
-	}
-	sort.Strings(sorted)
-	return sorted, nil
+	return helpers.HashmapToSortedSlice(bundle.Includes)
 }
 
 // GetAllPackagesForBundle returns a sorted slice of all packages for a specified
@@ -266,12 +262,7 @@ func GetAllPackagesForBundle(name, bundlesDir string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	var sorted []string
-	for p := range bundle.AllPackages {
-		sorted = append(sorted, p)
-	}
-	sort.Strings(sorted)
-	return sorted, nil
+	return helpers.HashmapToSortedSlice(bundle.AllPackages)
 }
 
 // GetAllPackagesForAllBundles gets every package used by the bundle definitions.
@@ -289,11 +280,5 @@ func GetAllPackagesForAllBundles(bundlesDir string) ([]string, error) {
 			allPackages[p] = true
 		}
 	}
-
-	allPackageNames := make([]string, 0, len(allPackages))
-	for pkg := range allPackages {
-		allPackageNames = append(allPackageNames, pkg)
-	}
-	sort.Strings(allPackageNames)
-	return allPackageNames, nil
+	return helpers.HashmapToSortedSlice(allPackages)
 }

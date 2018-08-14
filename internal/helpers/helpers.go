@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -322,4 +323,14 @@ func GetLatestVersionUint(upstreamURL string) (uint, error) {
 	}
 	ver, err := strconv.ParseUint(versionString, 10, 32)
 	return uint(ver), err
+}
+
+// HashmapToSortedSlice converts a hashmap to a sorted slice
+func HashmapToSortedSlice(hashmap map[string]bool) ([]string, error) {
+	sorted := make([]string, 0, len(hashmap))
+	for p := range hashmap {
+		sorted = append(sorted, p)
+	}
+	sort.Strings(sorted)
+	return sorted, nil
 }
