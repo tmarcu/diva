@@ -14,7 +14,9 @@
 
 package cmd
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/spf13/cobra"
+)
 
 var checkCmd = &cobra.Command{
 	Use:   "check",
@@ -24,4 +26,5 @@ var checkCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(checkCmd)
+	checkCmd.AddCommand(chirpCmd)
 }
