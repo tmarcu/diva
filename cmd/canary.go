@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"debug/elf"
-	"errors"
 	"fmt"
 	"github.com/spf13/cobra"
 	"io"
@@ -31,11 +30,16 @@ between builds, and only warn if it does not exist at all in any build.`,
 
 		r := diva.NewSuite("canary check", "check that stack canary exists in all ELF files")
 
-		errs := runCanaryCheck(r, u, args)
-		r.Ok(len(errs) == 0, "All ELF binaries pass stack canary check")
+		errs, warnings := runCanaryCheck(r, u, args)
+		r.Ok(len(errs) == 0, "No regressions since last build, all ELF binaries pass stack canary check")
 		if len(errs) > 0 {
 			r.Diagnostic(fmt.Sprint(len(errs)) + " Canaries Missing:\n" + strings.Join(errs, "\n"))
 		}
+		r.Ok(len(warnings) == 0, "No issues since last build, all existing ELF issues resolved")
+		if len(warnings) > 0 {
+			r.Diagnostic(fmt.Sprint(len(warnings)) + " Warnings:\n" + strings.Join(warnings, "\n"))
+		}
+
 		if chirpFlag {
 			for i := 0; i < len(errs); i++ {
 				fmt.Printf("chirp ")
@@ -47,7 +51,7 @@ between builds, and only warn if it does not exist at all in any build.`,
 func findCanary(name string, file *elf.File) error {
 	dynSymbols, err := file.DynamicSymbols()
 	if err != nil {
-		return fmt.Errorf("%s for: %s", err.Error(), name)
+		return fmt.Errorf("\n%s for: %s ", err.Error(), name)
 	}
 	// This is the canary we need to check for
 	for _, s := range dynSymbols {
@@ -55,7 +59,7 @@ func findCanary(name string, file *elf.File) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("No canary found for: %s", name)
+	return fmt.Errorf("\nNo canary found for: %s", name)
 }
 
 // Taken directly from the implementation of elf.NewFile()...
@@ -76,9 +80,8 @@ func isElf(r io.ReaderAt) (bool, error) {
 	return true, nil
 }
 
-func readCanary(oldfile, newfile string) error {
-	var err error
-	newFile, err := os.OpenFile(newfile, os.O_RDONLY, 0)
+func getFileCanary(file string) error {
+	fd, err := os.OpenFile(file, os.O_RDONLY, 0)
 	if os.IsNotExist(err) {
 		// File no longer exists, so nothing to check
 		return nil
@@ -86,66 +89,42 @@ func readCanary(oldfile, newfile string) error {
 		return err
 	}
 	defer func() {
-		_ = newFile.Close()
+		_ = fd.Close()
 	}()
 
 	// Don't fail on non-elf files, so check before trying to parse
-	var ret bool
-	ret, err = isElf(newFile)
+	var isELFfile bool
+	isELFfile, err = isElf(fd)
+	if err != nil || !isELFfile {
+		return err
+	}
+
+	var fileELF *elf.File
+	fileELF, err = elf.NewFile(fd)
+	// If we get an err here, it IS an elf file but couldn't be parsed.
+	// We need to check if the previous was an elf file and had a canary.
 	if err != nil {
 		return err
 	}
-	// It's just not an elf file, so ignore trying to check for canary
-	if !ret {
-		return nil
+	return findCanary(file, fileELF)
+}
+
+func readCanary(oldfile, newfile string) (string, error) {
+	var err error
+	// If newfile exists AND has a canary, don't waste time parsing previous
+	if err = getFileCanary(newfile); err == nil {
+		return "", nil
 	}
 
-	// Check the old file now since new does exist and is a valid ELF file
-	prev, err := os.OpenFile(oldfile, os.O_RDONLY, 0)
-	// Only exit if the error was something other than IsNotExist()
-	// because prev will be set to nil if it's not there, and we still
-	// want to check newfile if it was newly added in the build.
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	defer func() {
-		_ = prev.Close()
-	}()
+	returnErr := err.Error()
 
 	// Check both files if they exist to make sure the canary exists and was
 	// not lost between the two build versions.
-	var returnErr string
-	var prevElf *elf.File
-	var newElf *elf.File
-	if prev != nil {
-		ret, err = isElf(prev)
-		if err != nil {
-			return err
-		}
-		// Only check for canary if it is a valid ELF file
-		if ret {
-			// Get ELF specific struct to read symbols from
-			prevElf, err = elf.NewFile(prev)
-			// If we get an err here, it IS an elf file, but couldn't be parsed
-			if err != nil {
-				return err
-			}
-			if err = findCanary(oldfile+"\n", prevElf); err != nil {
-				returnErr += err.Error()
-			}
-		}
+	if err = getFileCanary(oldfile); err == nil {
+		return fmt.Sprint("old file contains canary: "), fmt.Errorf("%s", returnErr)
 	}
-	newElf, err = elf.NewFile(newFile)
-	if err != nil {
-		return err
-	}
-	if err = findCanary(newfile, newElf); err != nil {
-		returnErr += err.Error()
-	}
-	if returnErr != "" {
-		return errors.New(returnErr)
-	}
-	return nil
+	// Neither old nor new have canaries, return warning
+	return fmt.Sprintf("%s%s", err.Error(), returnErr), nil
 }
 
 func getFiles(files *[]string) filepath.WalkFunc {
@@ -159,23 +138,26 @@ func getFiles(files *[]string) filepath.WalkFunc {
 }
 
 // Checks if __stack_chk_fail is in the dynamic symbols table of binary
-func runCanaryCheck(r *diva.Results, u diva.UInfo, args []string) (errs []string) {
+func runCanaryCheck(r *diva.Results, u diva.UInfo, args []string) (errs, warnings []string) {
 	oldBuild := args[0]
 	newBuild := args[1]
 	var filesList []string
 	err := filepath.Walk(newBuild, getFiles(&filesList))
 	if err != nil {
-		return []string{err.Error()}
+		return []string{}, []string{err.Error()}
 	}
 
 	// Check using new full chroot only since it covers new/deleted files
 	for _, newfile := range filesList {
 		oldfile := filepath.Join(oldBuild, strings.TrimPrefix(newfile, newBuild))
-		if err := readCanary(oldfile, newfile); err != nil {
-			errs = append(errs, err.Error())
+		errString, err := readCanary(oldfile, newfile)
+		if err != nil {
+			errs = append(errs, errString)
+		} else if errString != "" {
+			warnings = append(warnings, errString)
 		}
 	}
-	return errs
+	return errs, warnings
 }
 
 var chirpFlag bool
