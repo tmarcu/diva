@@ -19,8 +19,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/clearlinux/diva/bundle"
-	"github.com/clearlinux/diva/diva"
+	"github.com/clearlinux/diva/pkginfo"
 	"github.com/clearlinux/mixer-tools/swupd"
 
 	"path/filepath"
@@ -28,9 +27,9 @@ import (
 
 var sizeMutex sync.RWMutex
 
-func getManifests(u diva.UInfo) ([]*swupd.Manifest, error) {
-	baseCache := filepath.Join(u.CacheLoc, "update")
-	momPath := filepath.Join(baseCache, fmt.Sprint(u.Ver), "Manifest.MoM")
+func getManifests(bundleInfo pkginfo.BundleInfo) ([]*swupd.Manifest, error) {
+	baseCache := filepath.Join(bundleInfo.CacheLoc, "update")
+	momPath := filepath.Join(baseCache, bundleInfo.Version, "Manifest.MoM")
 
 	mom, err := swupd.ParseManifestFile(momPath)
 	if err != nil {
@@ -64,22 +63,22 @@ func findManifest(name string, fs []*swupd.File) *swupd.File {
 }
 
 // Concurrently gets the size for each manifest
-func getSizes(u diva.UInfo, m *swupd.Manifest, mom *swupd.Manifest, bundleSizes map[string]int64, bundlePath string) error {
+func getSizes(bundleInfo pkginfo.BundleInfo, m *swupd.Manifest, mom *swupd.Manifest, bundleSizes map[string]int64) error {
 	if m.Name == "os-core-update-index" {
 		return nil
 	}
 
-	includes, err := bundle.GetIncludesForBundle(m.Name, bundlePath)
+	// Gets all includes from all bundles within BundleDefinition set
+	includes, err := bundleInfo.BundleDefinitions.GetIncludes("")
 	if err != nil {
-		fmt.Printf("Failed to get includes for manifest %s\n", m.Name)
 		return err
 	}
 
-	baseCache := filepath.Join(u.CacheLoc, "update")
-	for _, i := range includes {
+	baseCache := filepath.Join(bundleInfo.CacheLoc, "update")
+	for i := range includes {
 		manifestFile := findManifest(i, mom.Files)
 		if manifestFile == nil {
-			return err
+			return fmt.Errorf("Unable to find manifest file %s", manifestFile.Name)
 		}
 		path := filepath.Join(baseCache, fmt.Sprint(manifestFile.Version), "Manifest."+i)
 		includeManifest, err := swupd.ParseManifestFile(path)
@@ -98,11 +97,8 @@ func getSizes(u diva.UInfo, m *swupd.Manifest, mom *swupd.Manifest, bundleSizes 
 }
 
 // GetBundleSize gets the full size of all bundles in a given version
-func GetBundleSize(u diva.UInfo, bundlePath string) (map[string]int64, error) {
-	manifests, err := getManifests(u)
-	if err != nil {
-		return nil, err
-	}
+func GetBundleSize(bundleInfo pkginfo.BundleInfo) (map[string]int64, error) {
+	manifests, err := getManifests(bundleInfo)
 
 	var wg sync.WaitGroup
 	bundleWorkers := len(manifests)
@@ -112,8 +108,8 @@ func GetBundleSize(u diva.UInfo, bundlePath string) (map[string]int64, error) {
 
 	var bundleSizes = make(map[string]int64)
 
-	baseCache := filepath.Join(u.CacheLoc, "update")
-	momPath := filepath.Join(baseCache, fmt.Sprint(u.Ver), "Manifest.MoM")
+	baseCache := filepath.Join(bundleInfo.CacheLoc, "update")
+	momPath := filepath.Join(baseCache, bundleInfo.Version, "Manifest.MoM")
 
 	mom, err := swupd.ParseManifestFile(momPath)
 	if err != nil {
@@ -129,7 +125,7 @@ func GetBundleSize(u diva.UInfo, bundlePath string) (map[string]int64, error) {
 			defer wg.Done()
 			for m := range mChan {
 				// Get the total size for each bundle (without accounting for overlap between them)
-				err = getSizes(u, m, mom, bundleSizes, bundlePath)
+				err = getSizes(bundleInfo, m, mom, bundleSizes)
 				if err != nil {
 					errChan <- err
 				}

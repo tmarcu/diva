@@ -20,21 +20,80 @@ import (
 
 	"github.com/clearlinux/diva/bloatcheck"
 	"github.com/clearlinux/diva/diva"
+	"github.com/clearlinux/diva/internal/config"
 	"github.com/clearlinux/diva/internal/helpers"
+	"github.com/clearlinux/diva/pkginfo"
 	"github.com/spf13/cobra"
 )
 
 var highPrioBundles = map[string]bool{"os-core": true, "os-core-update": true, "c-basic": true, "kernel": true}
 
 type bloatCheckCmdFlags struct {
+	mixName     string
+	latest      bool
 	printOutput bool
 	failCap     float64
 	warningCap  float64
-	bundleURL   string
-	version     string
 }
 
 var bloatFlags bloatCheckCmdFlags
+
+func init() {
+	bloatCheckCmd.Flags().StringVarP(&bloatFlags.mixName, "name", "n", "clear", "name of data group")
+	bloatCheckCmd.Flags().BoolVar(&bloatFlags.latest, "latest", false, "get the latest version from upstreamURL")
+	bloatCheckCmd.Flags().BoolVarP(&bloatFlags.printOutput, "print", "p", false, "Print out bundles that increased in size")
+	bloatCheckCmd.Flags().Float64Var(&bloatFlags.failCap, "max", 10.0, "Set the max % a high priority bundle may increase.")
+	bloatCheckCmd.Flags().Float64Var(&bloatFlags.warningCap, "warn", 20.0, "Set the % bundle size change that will emit a warning.")
+}
+
+type manifestsInfo struct {
+	minMInfo pkginfo.ManifestInfo
+	maxMInfo pkginfo.ManifestInfo
+}
+
+var bloatCheckCmd = &cobra.Command{
+	Use:   "bloat [version] <to version>",
+	Short: "Check bundle size variation between builds",
+	Long: `Check bundle size variation between 2 builds by supplying two
+versions (to & from). You can omit the second "to version" to get the size
+of every bundle from one build only`,
+	Args: cobra.MinimumNArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+
+		// set Ver to be the first arg passed, in case only one arg is passed
+		u := config.UInfo{
+			Ver:     args[0],
+			Latest:  bloatFlags.latest,
+			MixName: bloatFlags.mixName,
+		}
+
+		var manifests manifestsInfo
+		var err error
+
+		// Set maxMInfo to be the larger of the two versions, and minMInfo to be
+		// the smaller of the two versions if more than one arg is passed
+		if len(args) == 2 {
+			manifests.maxMInfo, err = pkginfo.NewManifestInfo(conf, &u)
+			helpers.FailIfErr(err)
+			manifests.maxMInfo.Version = helpers.Max(args[0], args[1])
+
+			// set u.Ver to be the min of the two args passed
+			u.Ver = helpers.Min(args[0], args[1])
+		}
+
+		manifests.minMInfo, err = pkginfo.NewManifestInfo(conf, &u)
+		helpers.FailIfErr(err)
+
+		r := diva.NewSuite("bloat check", "check bundle bloat between build versions")
+
+		err = runBloatCheck(r, &manifests, args)
+		helpers.FailIfErr(err)
+
+		if r.Failed > 0 {
+			os.Exit(1)
+		}
+	},
+}
 
 func checkSize(name *string, sizeDiff, size float64) (float64, bool) {
 	if _, ok := highPrioBundles[*name]; ok {
@@ -53,36 +112,21 @@ func checkSize(name *string, sizeDiff, size float64) (float64, bool) {
 	return 0, false
 }
 
-func runBloatCheck(r *diva.Results, u diva.UInfo, args []string) error {
+func runBloatCheck(r *diva.Results, manifests *manifestsInfo, args []string) error {
 	var err error
 
-	// Get the smallest version # passed in if it's not in order
-	if len(args) == 2 {
-		u.Ver = helpers.Min(args[0], args[1])
-	} else {
-		u.Ver = args[0]
-	}
-
-	if bloatFlags.bundleURL != "" {
-		conf.BundleDefsURL = bloatFlags.bundleURL
-	}
-
-	err = diva.GetBundlesAtTag(conf, u.Ver)
-	if err != nil {
-		return err
-	}
-	err = diva.FetchUpdate(u)
+	err = pkginfo.PopulateBundles(&manifests.minMInfo.BundleInfo, "")
 	if err != nil {
 		return err
 	}
 
-	fromBundleSizes, err := bloatcheck.GetBundleSize(u, conf.Paths.BundleDefsRepo)
+	fromBundleSizes, err := bloatcheck.GetBundleSize(manifests.minMInfo.BundleInfo)
 	if err != nil {
 		return err
 	}
 
 	if len(args) == 1 {
-		fmt.Printf("Size information for build %v\n", u.Ver)
+		fmt.Printf("Size information for build %v\n", manifests.minMInfo.Version)
 		for bundle, size := range fromBundleSizes {
 			fmt.Printf("%s: %d\n", bundle, size)
 		}
@@ -90,20 +134,13 @@ func runBloatCheck(r *diva.Results, u diva.UInfo, args []string) error {
 		return nil
 	}
 
-	// Get the larger of the two if it's out of order
-	u.Ver = helpers.Max(args[0], args[1])
-
 	// Need both version of bundle definitions
-	err = diva.GetBundlesAtTag(conf, u.Ver)
-	if err != nil {
-		return err
-	}
-	err = diva.FetchUpdate(u)
+	err = pkginfo.PopulateBundles(&manifests.maxMInfo.BundleInfo, "")
 	if err != nil {
 		return err
 	}
 
-	toBundleSizes, err := bloatcheck.GetBundleSize(u, conf.Paths.BundleDefsRepo)
+	toBundleSizes, err := bloatcheck.GetBundleSize(manifests.maxMInfo.BundleInfo)
 	if err != nil {
 		return err
 	}
@@ -128,36 +165,4 @@ func runBloatCheck(r *diva.Results, u diva.UInfo, args []string) error {
 		r.Ok(!ret, desc)
 	}
 	return nil
-}
-
-var bloatCheckCmd = &cobra.Command{
-	Use:   "bloat [version] <to version>",
-	Short: "Check bundle size variation between builds",
-	Long: `Check bundle size variation between 2 builds by supplying two
-versions (to & from). You can omit the second "to version" to get the size
-of every bundle from one build only`,
-	Args: cobra.MinimumNArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		// Passing false to the last "recursive" flag because we don't want all manifest from minversion
-		u, err := diva.GetUpstreamInfo(conf, conf.UpstreamURL, bloatFlags.version, true, false)
-		helpers.FailIfErr(err)
-
-		r := diva.NewSuite("bloat check", "check bundle bloat between build versions")
-
-		err = runBloatCheck(r, u, args)
-		helpers.FailIfErr(err)
-
-		if r.Failed > 0 {
-			os.Exit(1)
-		}
-	},
-}
-
-func init() {
-	bloatCheckCmd.Flags().BoolVarP(&bloatFlags.printOutput, "print", "p", false, "Print out bundles that increased in size")
-	bloatCheckCmd.Flags().Float64Var(&bloatFlags.failCap, "max", 10.0, "Set the max % a high priority bundle may increase.")
-	bloatCheckCmd.Flags().Float64Var(&bloatFlags.warningCap, "warn", 20.0, "Set the % bundle size change that will emit a warning.")
-	bloatCheckCmd.Flags().StringVarP(&bloatFlags.bundleURL, "bundleurl", "b", "", "upstream bundle definition repo")
-	bloatCheckCmd.Flags().StringVarP(&bloatFlags.version, "version", "v", "", "version to check")
-
 }

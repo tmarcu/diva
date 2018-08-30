@@ -16,9 +16,21 @@ package pkginfo
 
 import (
 	"fmt"
+	"reflect"
 
+	"github.com/clearlinux/diva/bundle"
+	"github.com/clearlinux/diva/internal/helpers"
 	"github.com/gomodule/redigo/redis"
 )
+
+func storeIterableRedisSet(c redis.Conn, key string, value []string) error {
+	for i := range value {
+		if err := c.Send("SADD", key, value[i]); err != nil {
+			return err
+		}
+	}
+	return c.Flush()
+}
 
 // storeRepoInfoRedis stores all data in repo to the running redis-server
 func storeRepoInfoRedis(c redis.Conn, repo *Repo) error {
@@ -64,6 +76,60 @@ func storeRPMInfoRedis(c redis.Conn, repo *Repo, rpm *RPM) error {
 		fIdxKey := fmt.Sprintf("%s:file%d", pkgKey, fIdx)
 		_, err = c.Do("HMSET", redis.Args{}.Add(fIdxKey).AddFlat(f)...)
 		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func storeMapAsSliceRedis(c redis.Conn, key string, val map[string]bool) error {
+	valSlice, err := helpers.HashmapToSortedSlice(val)
+	if err != nil {
+		return err
+	}
+	return storeIterableRedisSet(c, key, valSlice)
+}
+
+func storeBundleInfoRedis(c redis.Conn, bundleInfo *BundleInfo, bundleset *bundle.DefinitionsSet) error {
+	bundlesKey := fmt.Sprintf("%s%sbundles", bundleInfo.Name, bundleInfo.Version)
+
+	// convert bundle definition set to slice for flat data store
+	bundles := bundle.SetToSlice(*bundleset)
+
+	// store list of all bundles
+	for _, bundle := range bundles {
+		_, err := c.Do("SADD", bundlesKey, bundle.Name)
+		if err != nil {
+			return err
+		}
+
+		// store bundle definitions
+		definitionKey := fmt.Sprintf("%s:%s", bundlesKey, bundle.Name)
+		_, err = c.Do("HMSET", redis.Args{}.Add(definitionKey).AddFlat(bundle)...)
+		if err != nil {
+			return err
+		}
+
+		// store header information for each bundle
+		header := reflect.ValueOf(&bundle.Header).Elem()
+		for i := 0; i < header.NumField(); i++ {
+			headerKey := header.Type().Field(i).Name
+			headerValue := header.Field(i).Interface()
+			if err = c.Send("SET", definitionKey+":"+headerKey, headerValue); err != nil {
+				return err
+			}
+			if err = c.Flush(); err != nil {
+				return err
+			}
+		}
+
+		if err = storeMapAsSliceRedis(c, definitionKey+":includes", bundle.Includes); err != nil {
+			return err
+		}
+		if err = storeMapAsSliceRedis(c, definitionKey+":directPackages", bundle.DirectPackages); err != nil {
+			return err
+		}
+		if err = storeMapAsSliceRedis(c, definitionKey+":allPackages", bundle.AllPackages); err != nil {
 			return err
 		}
 	}

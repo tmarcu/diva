@@ -20,7 +20,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"sort"
 	"strings"
 	"testing"
 
@@ -517,41 +516,47 @@ func TestGetIncludesForBundle(t *testing.T) {
 		testData.addBundle(bundle.name, filepath.Join("bundles", bundle.name), bundle.content...)
 	}
 
+	definitions, err := GetAll(testData.testdir)
+	if err != nil {
+		t.Error(err)
+	}
+
 	testCases := []struct {
 		bundleName       string
-		expectedIncludes []string
+		expectedIncludes map[string]bool
 	}{
 		{"koji",
-			[]string{
-				"koji", "os-core", "package-utils", "python3-basic", "random-pundle",
-				"web-server-basic",
+			map[string]bool{
+				"koji": true, "os-core": true, "package-utils": true, "python3-basic": true,
+				"random-pundle": true, "web-server-basic": true,
 			},
 		},
 		{"package-utils",
-			[]string{
-				"os-core", "package-utils", "python3-basic", "random-pundle",
+			map[string]bool{
+				"os-core": true, "package-utils": true, "python3-basic": true,
+				"random-pundle": true,
 			},
 		},
 		{"web-server-basic",
-			[]string{
-				"os-core", "web-server-basic",
+			map[string]bool{
+				"os-core": true, "web-server-basic": true,
 			},
 		},
 		{"python3-basic",
-			[]string{
-				"os-core", "python3-basic", "random-pundle",
+			map[string]bool{
+				"os-core": true, "python3-basic": true, "random-pundle": true,
 			},
 		},
 		{"random-pundle",
-			[]string{
-				"os-core", "random-pundle",
+			map[string]bool{
+				"os-core": true, "random-pundle": true,
 			},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.bundleName, func(t *testing.T) {
-			actualIncludes, err := GetIncludesForBundle(tc.bundleName, testData.testdir)
+			actualIncludes, err := definitions.GetIncludes(tc.bundleName)
 			if err != nil || !reflect.DeepEqual(tc.expectedIncludes, actualIncludes) {
 				t.Error(deep.Equal(tc.expectedIncludes, actualIncludes))
 			}
@@ -588,36 +593,46 @@ func TestGetAllPackagesForOneBundle(t *testing.T) {
 		testData.addBundle(bundle.name, filepath.Join("bundles", bundle.name), bundle.content...)
 	}
 
+	definitions, err := GetAll(testData.testdir)
+	if err != nil {
+		t.Error(err)
+	}
+
 	testCases := []struct {
 		bundleName       string
-		expectedPackages []string
+		expectedPackages map[string]bool
 	}{
 		{"koji",
-			[]string{
-				"createrepo_c", "dnf", "httpd", "koji", "koji-extras", "mash", "mod_wsgi",
-				"mock", "nfs-utils", "nginx", "postgresql", "clr-python-timestamp",
-				"glibc-lib-avx2", "virtualenv-python3", "random-pundle",
+			map[string]bool{
+				"createrepo_c": true, "dnf": true, "httpd": true, "koji": true,
+				"koji-extras": true, "mash": true, "mod_wsgi": true, "mock": true,
+				"nfs-utils": true, "nginx": true, "postgresql": true,
+				"clr-python-timestamp": true, "glibc-lib-avx2": true,
+				"virtualenv-python3": true, "random-pundle": true,
 			},
 		},
 		{"package-utils",
-			[]string{
-				"createrepo_c", "dnf", "mock", "clr-python-timestamp", "glibc-lib-avx2",
-				"virtualenv-python3", "random-pundle",
+			map[string]bool{
+				"createrepo_c": true, "dnf": true, "mock": true,
+				"clr-python-timestamp": true, "glibc-lib-avx2": true,
+				"virtualenv-python3": true, "random-pundle": true,
 			},
 		},
 		{"web-server-basic",
-			[]string{
-				"httpd", "nginx",
+			map[string]bool{
+				"httpd": true, "nginx": true,
 			},
 		},
+
 		{"python3-basic",
-			[]string{
-				"clr-python-timestamp", "glibc-lib-avx2", "virtualenv-python3", "random-pundle",
+			map[string]bool{
+				"clr-python-timestamp": true, "glibc-lib-avx2": true,
+				"virtualenv-python3": true, "random-pundle": true,
 			},
 		},
 		{"random-pundle",
-			[]string{
-				"random-pundle",
+			map[string]bool{
+				"random-pundle": true,
 			},
 		},
 	}
@@ -625,12 +640,11 @@ func TestGetAllPackagesForOneBundle(t *testing.T) {
 	for _, tc := range testCases {
 		// add os-core packages to all bundles
 		for pkg := range core.AllPackages {
-			tc.expectedPackages = append(tc.expectedPackages, pkg)
+			tc.expectedPackages[pkg] = true
 		}
-		sort.Strings(tc.expectedPackages)
 
 		t.Run(tc.bundleName, func(t *testing.T) {
-			actualPackages, err := GetAllPackagesForBundle(tc.bundleName, testData.testdir)
+			actualPackages, err := definitions.GetAllPackages(tc.bundleName)
 			if err != nil || !reflect.DeepEqual(tc.expectedPackages, actualPackages) {
 				t.Error(deep.Equal(tc.expectedPackages, actualPackages))
 			}
@@ -667,15 +681,43 @@ func TestGetAllPackagesForAllBundles(t *testing.T) {
 		testData.addBundle(bundle.name, filepath.Join("bundles", bundle.name), bundle.content...)
 	}
 
-	expectedAllPackagesList := []string{"bash-bin", "ca-certs-static",
+	definitions, err := GetAll(testData.testdir)
+	if err != nil {
+		t.Error(err)
+	}
+
+	expectedAllPackagesSlice := []string{"bash-bin", "ca-certs-static",
 		"clr-power-tweaks", "clr-python-timestamp", "clr-systemd-config",
 		"createrepo_c", "dnf", "glibc-lib-avx2", "httpd", "koji", "koji-extras",
 		"mash", "mock", "mod_wsgi", "nfs-utils", "nginx", "postgresql",
 		"random-pundle", "util-linux-bin", "virtualenv-python3",
 	}
 
-	actualPackages, err := GetAllPackagesForAllBundles(testData.testdir)
+	expectedAllPackagesList := make(map[string]bool)
+	for _, i := range expectedAllPackagesSlice {
+		expectedAllPackagesList[i] = true
+	}
+
+	actualPackages, err := definitions.GetAllPackages("")
 	if err != nil || !reflect.DeepEqual(expectedAllPackagesList, actualPackages) {
 		t.Error(deep.Equal(expectedAllPackagesList, actualPackages))
+	}
+}
+
+// have a test for os-core; a bundle that has no includes
+func TestGetIncludesSingleBundle(t *testing.T) {
+	testData := newTestInstance(t)
+	defer testData.teardown() // cleanup testdir
+
+	testData.addBundle("os-core", "bundles/os-core")
+	definitions, err := GetAll(testData.testdir)
+	if err != nil {
+		t.Error(err)
+	}
+
+	expectedIncludes := map[string]bool{"os-core": true}
+	actualIncludes, err := definitions.GetIncludes("os-core")
+	if err != nil || !reflect.DeepEqual(expectedIncludes, actualIncludes) {
+		t.Error(deep.Equal(expectedIncludes, actualIncludes))
 	}
 }

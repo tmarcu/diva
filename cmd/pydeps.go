@@ -19,8 +19,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/clearlinux/diva/bundle"
 	"github.com/clearlinux/diva/diva"
+	"github.com/clearlinux/diva/internal/config"
 	"github.com/clearlinux/diva/internal/helpers"
 	"github.com/clearlinux/diva/pkginfo"
 
@@ -28,22 +28,21 @@ import (
 )
 
 type pyDepsCmdFlags struct {
-	path      string
+	mixName   string
 	version   string
-	repoName  string
+	latest    bool
+	path      string
 	buildroot bool
-	bundleURL string
 }
 
 var pipFlags pyDepsCmdFlags
 
 func init() {
-	pyDepsCmd.Flags().StringVarP(&pipFlags.path, "path", "p", "", "path to full chroot")
+	pyDepsCmd.Flags().StringVarP(&pipFlags.mixName, "name", "n", "clear", "name of data group")
 	pyDepsCmd.Flags().StringVarP(&pipFlags.version, "version", "v", "0", "version to check")
-	pyDepsCmd.Flags().StringVarP(&pipFlags.repoName, "reponame", "n", "clear", "Name of repo")
+	pyDepsCmd.Flags().BoolVar(&pipFlags.latest, "latest", false, "get the latest version from upstreamURL")
+	pyDepsCmd.Flags().StringVarP(&pipFlags.path, "path", "p", "", "path to full chroot")
 	pyDepsCmd.Flags().BoolVar(&pipFlags.buildroot, "buildroot", false, "construct build root from repo")
-	pyDepsCmd.Flags().StringVarP(&pipFlags.bundleURL, "bundleurl", "b", "", "Upstream bundles url")
-
 }
 
 var pyDepsCmd = &cobra.Command{
@@ -51,9 +50,10 @@ var pyDepsCmd = &cobra.Command{
 	Short: "Run pip check against full chroot",
 	Long: `Run pip check against full chroot at <path>, if a <path> is not specified
 OR the --buildroot option is passed, a build root will be constructed using a
-repo specified by <version> and <reponame>, which default to "0" and "clear",
+repo specified by <version> and <name>, which default to "0" and "clear",
 respectively. If no <path> is passed, but the --buildroot option is, the build
-root will be constructed here: "<conf.Mixer.MixWorkSpace>/update/image/<version>/full".`,
+root will be constructed here: "<conf.Mixer.MixWorkSpace>/update/image/<version>/full".
+NOTE: This command may need root privileges: 'sudo -E'.`,
 	Run: runCheckPyDeps,
 }
 
@@ -63,11 +63,23 @@ func runCheckPyDeps(cmd *cobra.Command, args []string) {
 		p = filepath.Join(conf.Mixer.MixWorkSpace, "update/image", pipFlags.version, "full")
 	}
 
-	err := checkSystemRequirements()
+	u := config.UInfo{
+		MixName: pipFlags.mixName,
+		Ver:     pipFlags.version,
+		Latest:  pipFlags.latest,
+	}
+
+	repo, err := pkginfo.NewRepo(conf, &u)
+	helpers.FailIfErr(err)
+
+	bundleInfo, err := pkginfo.NewBundleInfo(conf, &u)
+	helpers.FailIfErr(err)
+
+	err = checkSystemRequirements()
 	helpers.FailIfErr(err)
 
 	if pipFlags.path == "" || pipFlags.buildroot {
-		err := createFullChroot(p)
+		err := createFullChroot(p, &bundleInfo, &repo)
 		helpers.FailIfErr(err)
 	}
 
@@ -89,26 +101,19 @@ func checkSystemRequirements() error {
 	return nil
 }
 
-func createFullChroot(path string) error {
+func createFullChroot(path string, bundleInfo *pkginfo.BundleInfo, repo *pkginfo.Repo) error {
 	var err error
-
-	repo := pkginfo.Repo{
-		URI:     "",
-		Name:    pipFlags.repoName,
-		Version: pipFlags.version,
-		Type:    "B",
-	}
 
 	// populate the repo information from the database
 	helpers.PrintBegin("Populating repo")
-	err = pkginfo.PopulateRepo(&repo, conf.Paths.CacheLocation)
+	err = pkginfo.PopulateRepo(repo)
 	if err != nil {
 		return err
 	}
 	helpers.PrintComplete("Repo populated successfully")
 
 	// create repo information
-	err = helpers.RunCommandSilent("createrepo_c", repo.CacheDir)
+	err = helpers.RunCommandSilent("createrepo_c", repo.RPMCache)
 	if err != nil {
 		return err
 	}
@@ -130,28 +135,23 @@ func createFullChroot(path string) error {
 		_ = os.RemoveAll(tmpDir)
 	}()
 
-	_, err = f.WriteString("[diva]\nname=diva\nbaseurl=file://" + repo.CacheDir)
+	_, err = f.WriteString("[diva]\nname=diva\nbaseurl=file://" + repo.RPMCache)
 	if err != nil {
 		return err
 	}
 
-	if pipFlags.bundleURL != "" {
-		conf.BundleDefsURL = pipFlags.bundleURL
-	}
-
-	// Get the latest bundle definitions if no version passed, otherwise checkout
-	// the version tag
-	if pipFlags.version == "0" {
-		err = diva.GetLatestBundles(conf, "")
-	} else {
-		err = diva.GetBundlesAtTag(conf, pipFlags.version)
-	}
+	err = pkginfo.PopulateBundles(bundleInfo, "")
 	if err != nil {
 		return err
 	}
 
 	// get the slice of all packages from all bundles for chroot install
-	packages, err := bundle.GetAllPackagesForAllBundles(conf.Paths.BundleDefsRepo)
+	pkgsmap, err := bundleInfo.BundleDefinitions.GetAllPackages("")
+	if err != nil {
+		return err
+	}
+
+	packages, err := helpers.HashmapToSortedSlice(pkgsmap)
 	if err != nil {
 		return err
 	}

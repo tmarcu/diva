@@ -24,12 +24,8 @@ import (
 	"sync"
 
 	rpm "github.com/cavaliercoder/go-rpm"
-	"github.com/clearlinux/diva/internal/config"
 	"github.com/clearlinux/diva/internal/helpers"
 )
-
-// config object used by GetUpstreamRepoFiles and called functions
-var c *config.Config
 
 // buildFileListsURL parses upstream repomd.xml file to find the filelists
 // file.  We cannot just look for the filelists file directly because a hash is
@@ -247,43 +243,34 @@ func downloadAllRPMs(packages []string, workingDir string) error {
 // baseURL by first parsing the repo metadata. These packages are downloaded to
 // the c.CacheLocation/rpms/<version>/packages/ if they do not already exist
 // there.
-func DownloadRepoFiles(repo *Repo, update bool) (string, error) {
-	var err error
-	c, err = config.ReadConfig("")
-	if err != nil {
-		return "", err
-	}
+func DownloadRepoFiles(repo *Repo, update bool) error {
 
-	workingDir := filepath.Join(
-		c.Paths.CacheLocation,
-		"rpms",
-		repo.Name,
-		repo.Version,
-		repo.Type,
-	)
-
-	if err = os.MkdirAll(workingDir, 0755); err != nil {
-		return "", err
+	workingDir := filepath.Dir(repo.RPMCache)
+	if err := os.MkdirAll(workingDir, 0755); err != nil {
+		return err
 	}
 
 	url, err := buildFilelistsURL(repo, workingDir, update)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	flistsPath := filepath.Join(workingDir, "filelists.xml")
+	if _, err = os.Stat(flistsPath); err == nil && !update {
+		return fmt.Errorf(`%s already exists, so it will fail to redownload. Pass '--update' to overwrite the current filelists.xml file, or download to a different --repocache location`, flistsPath)
+	}
 	// this file can be either gz or xz compressed, use DownloadFile
 	// which will use whatever extraction method is appropriate based
 	// on the file extension.
 	err = helpers.DownloadFile(url, flistsPath, update)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	packages, err := buildPackageURLs(repo, flistsPath, workingDir, update)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	return filepath.Join(workingDir, "packages"), downloadAllRPMs(packages, workingDir)
+	return downloadAllRPMs(packages, workingDir)
 }

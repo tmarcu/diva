@@ -24,10 +24,10 @@ import (
 
 // ImportAllRPMs imports all RPMs from a given repository. It populates the
 // passed repo with all RPMs imported.
-func ImportAllRPMs(repo *Repo, update bool, path string) error {
+func ImportAllRPMs(repo *Repo, update bool) error {
 	var err error
 
-	if err = loadRepoFromCache(repo, path); err != nil {
+	if err = loadRepoFromCache(repo, repo.RPMCache); err != nil {
 		return err
 	}
 

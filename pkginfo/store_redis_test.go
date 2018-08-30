@@ -17,6 +17,7 @@ package pkginfo
 import (
 	"testing"
 
+	"github.com/clearlinux/diva/bundle"
 	"github.com/rafaeljusto/redigomock"
 )
 
@@ -29,9 +30,11 @@ func TestStoreRPMInfoRedis(t *testing.T) {
 	}
 
 	repo := &Repo{
-		Name:    "testrepo",
-		Version: "100",
-		Type:    "B",
+		BaseInfo: BaseInfo{
+			Version: "100",
+			Name:    "testrepo",
+		},
+		Type: "B",
 		Packages: []*RPM{
 			{
 				Name:     "testpkg",
@@ -47,6 +50,36 @@ func TestStoreRPMInfoRedis(t *testing.T) {
 	}
 
 	if err := storeRepoInfoRedis(conn, repo); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, c := range cmds {
+		if conn.Stats(c) == 0 {
+			t.Errorf("expected command %s %s was not called", c.Name, c.Args)
+		}
+	}
+}
+
+func TestStoreBundleInfoRedis(t *testing.T) {
+	conn := redigomock.NewConn()
+	cmds := []*redigomock.Cmd{
+		conn.GenericCommand("SADD").Expect("ok"),
+		conn.GenericCommand("HMSET").Expect("ok"),
+	}
+
+	bundleInfo := &BundleInfo{
+		BaseInfo: BaseInfo{
+			Name:    "clear",
+			Version: "22000",
+		},
+		BundleDefinitions: bundle.DefinitionsSet{"TestBundle": &bundle.Definition{
+			Name:   "TestBundle",
+			Header: bundle.Header{Title: "TestBundle"},
+		},
+		},
+	}
+	err := storeBundleInfoRedis(conn, bundleInfo, &bundleInfo.BundleDefinitions)
+	if err != nil {
 		t.Fatal(err)
 	}
 

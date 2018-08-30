@@ -15,23 +15,28 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/clearlinux/diva/diva"
+	"github.com/clearlinux/diva/internal/config"
 	"github.com/clearlinux/diva/internal/helpers"
+	"github.com/clearlinux/diva/pkginfo"
 	"github.com/clearlinux/diva/updatecontent"
 
 	"github.com/spf13/cobra"
 )
 
 func init() {
-	ucCmd.Flags().UintVarP(&ucFlags.version, "version", "v", 0, "version to check")
+	ucCmd.Flags().StringVarP(&ucFlags.mixName, "name", "n", "clear", "name of data group")
+	ucCmd.Flags().StringVarP(&ucFlags.version, "version", "v", "0", "version to check")
+	ucCmd.Flags().BoolVar(&ucFlags.latest, "latest", false, "get the latest version from upstreamURL")
 	ucCmd.Flags().BoolVarP(&ucFlags.recursive, "recursive", "r", false, "perform complete recursive check")
 }
 
 type ucCmdFlags struct {
-	version   uint
+	mixName   string
+	version   string
+	latest    bool
 	recursive bool
 }
 
@@ -40,7 +45,7 @@ var ucFlags ucCmdFlags
 var ucCmd = &cobra.Command{
 	Use:   "updatecontent",
 	Short: "Validate update file and pack content",
-	Long: `Validate update content for <version> or latest if --version was not provided.
+	Long: `Validate update content for <version> or latest if --latest is passed.
 Validates that all file and pack content is available and correct and their
 hashes match those provided in their respective manifests. If --recursive was
 passed, perform the check on all update content reachable through the
@@ -49,14 +54,23 @@ manifests, otherwise validate only the current version.`,
 }
 
 func runUCCheck(cmd *cobra.Command, args []string) {
-	var err error
-	v := ucFlags.version
-	if v == 0 {
-		v, err = helpers.GetLatestVersionUint(conf.UpstreamURL)
-		helpers.FailIfErr(err)
+	u := config.UInfo{
+		MixName:   ucFlags.mixName,
+		Ver:       ucFlags.version,
+		Latest:    ucFlags.latest,
+		Recursive: ucFlags.recursive,
 	}
 
-	results, err := UCCheck(v, ucFlags.recursive)
+	manifestInfo, err := pkginfo.NewManifestInfo(conf, &u)
+	helpers.FailIfErr(err)
+
+	err = diva.FetchUpdate(conf, &u)
+	helpers.FailIfErr(err)
+
+	err = diva.FetchUpdateFiles(conf, &u)
+	helpers.FailIfErr(err)
+
+	results, err := UCCheck(&manifestInfo)
 	helpers.FailIfErr(err)
 
 	if results.Failed > 0 {
@@ -66,40 +80,24 @@ func runUCCheck(cmd *cobra.Command, args []string) {
 
 // UCCheck runs update content checks against manifests and their related file
 // and pack contents
-func UCCheck(version uint, recursive bool) (*diva.Results, error) {
+func UCCheck(m *pkginfo.ManifestInfo) (*diva.Results, error) {
+	var err error
 	r := diva.NewSuite("updatecontent", "check update content for release")
-	u := diva.UInfo{
-		Ver:      fmt.Sprint(version),
-		URL:      conf.UpstreamURL,
-		CacheLoc: conf.Paths.CacheLocation,
-	}
-	if !recursive {
-		u.MinVer = version
-	}
-	err := diva.FetchUpdate(u)
-	if err != nil {
-		return r, err
-	}
-
-	err = diva.FetchUpdateFiles(u)
-	if err != nil {
-		return r, err
-	}
 
 	r.Header(0)
-	err = updatecontent.CheckManifestHashes(r, conf, version, u.MinVer)
+	err = updatecontent.CheckManifestHashes(r, conf, m.UintVer, m.MinVer)
 	if err != nil {
 		return r, err
 	}
-	err = updatecontent.CheckFileHashes(r, conf, version, u.MinVer)
+	err = updatecontent.CheckFileHashes(r, conf, m.UintVer, m.MinVer)
 	if err != nil {
 		return r, err
 	}
-	err = updatecontent.CheckPacks(r, conf, version, u.MinVer, true)
+	err = updatecontent.CheckPacks(r, conf, m.UintVer, m.MinVer, true)
 	if err != nil {
 		return r, err
 	}
-	err = updatecontent.CheckPacks(r, conf, version, u.MinVer, false)
+	err = updatecontent.CheckPacks(r, conf, m.UintVer, m.MinVer, false)
 	if err != nil {
 		return r, err
 	}

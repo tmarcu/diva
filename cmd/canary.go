@@ -29,15 +29,10 @@ This means that the binary was compiled with stack protection enabled, which sho
 between builds, and only warn if it does not exist at all in any build.`,
 	Args: cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
-		// Passing false to the last "recursive" flag because we don't want all manifest from minversion
-		u, divaErr := diva.GetUpstreamInfo(conf, conf.UpstreamURL, bloatFlags.version, true, false)
-		if divaErr != nil {
-			os.Exit(1)
-		}
 
 		r := diva.NewSuite("canary check", "check that stack canary exists in all ELF files")
 
-		errs, warnings := runCanaryCheck(r, u, args)
+		errs, warnings := runCanaryCheck(r, args)
 		r.Ok(len(errs) == 0, "No regressions since last build, all ELF binaries pass stack canary check")
 		if len(errs) > 0 {
 			r.Diagnostic(fmt.Sprint(len(errs)) + " Canaries Missing:\n" + strings.Join(errs, "\n"))
@@ -145,7 +140,7 @@ func getFiles(files *[]string) filepath.WalkFunc {
 }
 
 // Checks if __stack_chk_fail is in the dynamic symbols table of binary
-func runCanaryCheck(r *diva.Results, u diva.UInfo, args []string) (errs, warnings []string) {
+func runCanaryCheck(r *diva.Results, args []string) (errs, warnings []string) {
 	oldBuild := args[0]
 	newBuild := args[1]
 	var filesList []string

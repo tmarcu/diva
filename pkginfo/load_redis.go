@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/clearlinux/diva/bundle"
 	"github.com/gomodule/redigo/redis"
 )
 
@@ -117,12 +118,130 @@ func getRepoRedis(c redis.Conn, repo *Repo) error {
 	if err != nil {
 		return err
 	}
+	if len(pIdxs) == 0 {
+		return fmt.Errorf(`no repo data found. Try running "diva fetch repo -v <version>" to populate database`)
+	}
+
 	for _, pn := range pIdxs {
 		p, err := getRPMRedis(c, repo, pn)
 		if err != nil {
 			return err
 		}
 		repo.Packages = appendUniqueRPMName(repo.Packages, p)
+	}
+
+	return nil
+}
+
+func getBundleHeader(c redis.Conn, bundleName, bundleKey string) (bundle.Header, error) {
+	var err error
+	header := bundle.Header{}
+
+	header.Title, err = redis.String(c.Do("GET", bundleKey+":Title"))
+	if err != nil {
+		return header, err
+	}
+
+	header.Description, err = redis.String(c.Do("GET", bundleKey+":Description"))
+	if err != nil {
+		return header, err
+	}
+
+	header.Status, err = redis.String(c.Do("GET", bundleKey+":Status"))
+	if err != nil {
+		return header, err
+	}
+
+	header.Capabilities, err = redis.String(c.Do("GET", bundleKey+":Capabilities"))
+	if err != nil {
+		return header, err
+	}
+
+	header.Maintainer, err = redis.String(c.Do("GET", bundleKey+":Maintainer"))
+	if err != nil {
+		return header, err
+	}
+
+	return header, nil
+}
+
+func getBundleRedis(c redis.Conn, bundleInfo *BundleInfo, bundleName string) error {
+	var err error
+
+	b := &bundle.Definition{
+		Includes:       make(map[string]bool),
+		DirectPackages: make(map[string]bool),
+		AllPackages:    make(map[string]bool),
+	}
+
+	bundleKey := fmt.Sprintf("%s%sbundles:%s", bundleInfo.Name, bundleInfo.Version, bundleName)
+
+	b.Name, err = redis.String(c.Do("HGET", bundleKey, "Name"))
+	if err != nil {
+		return err
+	}
+
+	b.Header, err = getBundleHeader(c, bundleName, bundleKey)
+	if err != nil {
+		return err
+	}
+
+	inc, err := redis.Strings(c.Do("SMEMBERS", bundleKey+":includes"))
+	if err != nil {
+		return err
+	}
+
+	for _, in := range inc {
+		b.Includes[in] = true
+	}
+
+	dpkgs, err := redis.Strings(c.Do("SMEMBERS", bundleKey+":directPackages"))
+	if err != nil {
+		return err
+	}
+
+	for _, dp := range dpkgs {
+		b.DirectPackages[dp] = true
+	}
+
+	apkgs, err := redis.Strings(c.Do("SMEMBERS", bundleKey+":allPackages"))
+	if err != nil {
+		return err
+	}
+
+	for _, ap := range apkgs {
+		b.AllPackages[ap] = true
+	}
+
+	bundleInfo.BundleDefinitions[b.Name] = b
+
+	if len(bundleInfo.BundleDefinitions) == 0 {
+		return fmt.Errorf(`no bundle definitions found. Try running "diva fetch bundles -v <version>" to populate database`)
+	}
+
+	return nil
+}
+
+func getBundlesRedis(c redis.Conn, bundleInfo *BundleInfo, bundleName string) error {
+	if bundleName != "" {
+		return getBundleRedis(c, bundleInfo, bundleName)
+	}
+
+	bundlesKey := fmt.Sprintf("%s%sbundles", bundleInfo.Name, bundleInfo.Version)
+	bIdxs, err := redis.Strings(c.Do("SMEMBERS", bundlesKey))
+	if err != nil {
+		return err
+	}
+
+	if len(bIdxs) == 0 {
+		return fmt.Errorf(`no bundle definitions found. Try running "diva fetch bundles -v <version>" to populate database`)
+	}
+
+	for _, bn := range bIdxs {
+		err := getBundleRedis(c, bundleInfo, bn)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -28,122 +27,71 @@ import (
 	"github.com/clearlinux/mixer-tools/swupd"
 )
 
-// UInfo describes basic information about the upstream update server and local
-// cache location
-type UInfo struct {
-	Ver      string
-	MinVer   uint
-	URL      string
-	CacheLoc string
-	Update   bool
-}
-
-// GetUpstreamInfo populates the UInfo struct and returns it
-func GetUpstreamInfo(conf *config.Config, upstreamURL string, version string, recursive bool, update bool) (UInfo, error) {
-	u := UInfo{}
-	if upstreamURL == "" {
-		u.URL = conf.UpstreamURL
-	} else {
-		u.URL = upstreamURL
-	}
-
-	u.Update = update
-	// no support yet for modifying cache location via commandline
-	u.CacheLoc = conf.Paths.CacheLocation
-
-	var err error
-	u.Ver = version
-	if u.Ver == "" {
-		// get latest upstream version
-		u.Ver, err = helpers.GetLatestVersion(u.URL)
-		if err != nil {
-			return u, err
-		}
-	}
-
-	if !recursive {
-		var mv int
-		mv, err = strconv.Atoi(u.Ver)
-		if err != nil {
-			return u, err
-		}
-		u.MinVer = uint(mv)
-	}
-
-	return u, err
-}
-
 // FetchRepo fetches the RPM repo at the u.URL baseurl to the local cache
 // location
-func FetchRepo(u UInfo) error {
-	repo := &pkginfo.Repo{
-		URI:     fmt.Sprintf("%s/releases/%s/clear/x86_64/os/", u.URL, u.Ver),
-		Name:    "clear",
-		Version: u.Ver,
-		Type:    "B",
+func FetchRepo(conf *config.Config, u *config.UInfo) error {
+
+	repo, err := pkginfo.NewRepo(conf, u)
+	if err != nil {
+		return err
 	}
 
 	helpers.PrintBegin("fetching repo from %s", repo.URI)
-	path, err := pkginfo.DownloadRepoFiles(repo, u.Update)
+	err = pkginfo.DownloadRepoFiles(&repo, u.Update)
 	if err != nil {
 		return err
 	}
 
-	err = pkginfo.ImportAllRPMs(repo, u.Update, path)
+	err = pkginfo.ImportAllRPMs(&repo, u.Update)
 	if err != nil {
 		return err
 	}
-	helpers.PrintComplete("repo cached at %s", path)
+
+	helpers.PrintComplete("repo cached at %s", repo.RPMCache)
 	return nil
 }
 
-// GetBundlesAtTag clones the repo if it doesn't exist, and then checks
-// out the tag.
-func GetBundlesAtTag(conf *config.Config, tag string) error {
-	if _, err := os.Stat(conf.Paths.BundleDefsRepo); err != nil {
-		helpers.PrintBegin("cloning latest bundle definitions")
-		err := helpers.CloneRepo(conf.BundleDefsURL, filepath.Dir(conf.Paths.BundleDefsRepo))
-		if err != nil {
-			return err
-		}
-		helpers.PrintComplete("bundle repo cloned to %s", conf.Paths.BundleDefsRepo)
-		return nil
-	}
+// FetchBundles clones the bundles repository from the config or passed in
+// bundleURL argument and imports the information to the database.
+func FetchBundles(conf *config.Config, u *config.UInfo) error {
 
-	return helpers.CheckoutRepoTag(conf.Paths.BundleDefsRepo, tag)
-}
-
-// GetLatestBundles clones or pulls the latest clr-bundles definitions to
-// conf.Paths.BundleDefsRepo
-func GetLatestBundles(conf *config.Config, url string) error {
-	if url == "" {
-		url = conf.BundleDefsURL
-	}
-
-	if _, err := os.Stat(conf.Paths.BundleDefsRepo); err == nil {
-		helpers.PrintBegin("pulling latest bundle definitions")
-		err = helpers.PullRepo(conf.Paths.BundleDefsRepo)
-		if err != nil {
-			return err
-		}
-		helpers.PrintComplete("bundle repo pulled at %s", conf.Paths.BundleDefsRepo)
-		return nil
-	}
-	helpers.PrintBegin("cloning latest bundle definitions")
-	err := helpers.CloneRepo(url, filepath.Dir(conf.Paths.BundleDefsRepo))
+	bundleInfo, err := pkginfo.NewBundleInfo(conf, u)
 	if err != nil {
 		return err
 	}
-	helpers.PrintComplete("bundle repo cloned to %s", conf.Paths.BundleDefsRepo)
+
+	helpers.PrintBegin("getting bundle definitions")
+	err = pkginfo.DownloadBundles(&bundleInfo)
+	if err != nil {
+		return err
+	}
+	helpers.PrintComplete("bundle repo cached to %s", bundleInfo.BundleCache)
+
+	err = pkginfo.ImportBundleDefinitions(&bundleInfo)
+	if err != nil {
+		return err
+	}
+
+	// after fetching from the specified tag, defer back to previous state
+	defer func() {
+		_ = helpers.CheckoutBranch(bundleInfo.BundleCache, bundleInfo.Branch)
+	}()
+
 	return nil
 }
 
 // FetchUpdate downloads manifests from the u.URL server
-func FetchUpdate(u UInfo) error {
-	helpers.PrintBegin("fetching manifests from %s at version %v", u.URL, u.Ver)
-	baseCache := filepath.Join(u.CacheLoc, "update")
-	outMoM := filepath.Join(baseCache, u.Ver, "Manifest.MoM")
-	err := helpers.DownloadManifest(u.URL, u.Ver, "MoM", outMoM)
+func FetchUpdate(conf *config.Config, u *config.UInfo) error {
+
+	mInfo, err := pkginfo.NewManifestInfo(conf, u)
+	if err != nil {
+		return err
+	}
+
+	helpers.PrintBegin("fetching manifests from %s at version %v", mInfo.UpstreamURL, mInfo.Version)
+	baseCache := filepath.Join(mInfo.CacheLoc, "update")
+	outMoM := filepath.Join(baseCache, mInfo.Version, "Manifest.MoM")
+	err = helpers.DownloadManifest(mInfo.UpstreamURL, mInfo.Version, "MoM", outMoM)
 	if err != nil {
 		return err
 	}
@@ -154,11 +102,11 @@ func FetchUpdate(u UInfo) error {
 
 	for i := range mom.Files {
 		ver := uint(mom.Files[i].Version)
-		if ver < u.MinVer {
+		if ver < mInfo.MinVer {
 			continue
 		}
 		outMan := filepath.Join(baseCache, fmt.Sprint(ver), "Manifest."+mom.Files[i].Name)
-		err := helpers.DownloadManifest(u.URL, fmt.Sprint(ver), mom.Files[i].Name, outMan)
+		err := helpers.DownloadManifest(mInfo.UpstreamURL, mInfo.Version, mom.Files[i].Name, outMan)
 		if err != nil {
 			return err
 		}
@@ -173,11 +121,11 @@ type finfo struct {
 	err error
 }
 
-func getAllManifests(u UInfo) (map[string]finfo, error) {
+func getAllManifests(mInfo pkginfo.ManifestInfo) (map[string]finfo, error) {
 	dlFiles := make(map[string]finfo)
-	baseCache := filepath.Join(u.CacheLoc, "update")
-	outMoM := filepath.Join(baseCache, fmt.Sprint(u.Ver), "Manifest.MoM")
-	err := helpers.DownloadManifest(u.URL, u.Ver, "MoM", outMoM)
+	baseCache := filepath.Join(mInfo.CacheLoc, "update")
+	outMoM := filepath.Join(baseCache, mInfo.Version, "Manifest.MoM")
+	err := helpers.DownloadManifest(mInfo.UpstreamURL, mInfo.Version, "MoM", outMoM)
 	if err != nil {
 		return nil, err
 	}
@@ -190,12 +138,11 @@ func getAllManifests(u UInfo) (map[string]finfo, error) {
 	// this is fast, no need to parallelize
 	for i := range mom.Files {
 		mv := uint(mom.Files[i].Version)
-		if mv < u.MinVer {
+		if mv < mInfo.MinVer {
 			continue
 		}
-		baseCache := filepath.Join(u.CacheLoc, "update")
 		outMan := filepath.Join(baseCache, fmt.Sprint(mv), "Manifest."+mom.Files[i].Name)
-		err := helpers.DownloadManifest(u.URL, fmt.Sprint(mv), mom.Files[i].Name, outMan)
+		err := helpers.DownloadManifest(mInfo.UpstreamURL, fmt.Sprint(mv), mom.Files[i].Name, outMan)
 		if err != nil {
 			return nil, err
 		}
@@ -206,11 +153,11 @@ func getAllManifests(u UInfo) (map[string]finfo, error) {
 		}
 
 		for _, f := range m.Files {
-			if uint(f.Version) < u.MinVer || !f.Present() {
+			if uint(f.Version) < mInfo.MinVer || !f.Present() {
 				continue
 			}
 
-			fURL := fmt.Sprintf("%s/update/%d/files/%s.tar", u.URL, f.Version, f.Hash)
+			fURL := fmt.Sprintf("%s/update/%d/files/%s.tar", mInfo.UpstreamURL, f.Version, f.Hash)
 			fOut := filepath.Join(baseCache, fmt.Sprint(f.Version), "files", f.Hash.String()+".tar")
 			fi := finfo{out: fOut, url: fURL}
 			dlFiles[fOut] = fi
@@ -220,9 +167,15 @@ func getAllManifests(u UInfo) (map[string]finfo, error) {
 }
 
 // FetchUpdateFiles downloads relevant files for u.Ver from u.URL
-func FetchUpdateFiles(u UInfo) error {
-	helpers.PrintBegin("fetching files from %s at version %v", u.URL, u.Ver)
-	dlFiles, err := getAllManifests(u)
+func FetchUpdateFiles(conf *config.Config, u *config.UInfo) error {
+
+	mInfo, err := pkginfo.NewManifestInfo(conf, u)
+	if err != nil {
+		return err
+	}
+
+	helpers.PrintBegin("fetching files from %s at version %v", mInfo.UpstreamURL, mInfo.Version)
+	dlFiles, err := getAllManifests(mInfo)
 	if err != nil {
 		return err
 	}
@@ -261,7 +214,7 @@ func FetchUpdateFiles(u UInfo) error {
 	if len(errChan) > 0 {
 		helpers.PrintComplete("errors downloading %d files", len(errChan))
 	} else {
-		helpers.PrintComplete("files cached at %s", filepath.Join(u.CacheLoc, "update"))
+		helpers.PrintComplete("files cached at %s", filepath.Join(mInfo.CacheLoc, "update"))
 	}
 	return nil
 }

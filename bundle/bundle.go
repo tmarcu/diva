@@ -22,8 +22,6 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
-
-	"github.com/clearlinux/diva/internal/helpers"
 )
 
 // Global variable to store os-core bundle definition
@@ -50,8 +48,54 @@ type Definition struct {
 	AllPackages    map[string]bool
 }
 
-// Set is a map of bundle names to their definition
-type Set map[string]*Definition
+// DefinitionsSet is a map of bundle names to their definition
+type DefinitionsSet map[string]*Definition
+
+// GetIncludes returns all of the includes for all of the bundles, unless a
+// specific bundle name is passed, then it returns all of the includes for that
+// bundle definition.
+func (defs DefinitionsSet) GetIncludes(bundleName string) (map[string]bool, error) {
+	if bundleName != "" {
+		return defs[bundleName].Includes, nil
+	}
+
+	allIncludes := make(map[string]bool)
+	for _, bundle := range defs {
+		for j := range bundle.Includes {
+			allIncludes[j] = true
+		}
+	}
+	return allIncludes, nil
+}
+
+// GetAllPackages returns all of the dependent packages recursively among all
+// bundle definitions. If a bundleName is passed, only the recursive packages
+// to that bundle will be returned.
+func (defs DefinitionsSet) GetAllPackages(bundleName string) (map[string]bool, error) {
+	if bundleName != "" {
+		return defs[bundleName].AllPackages, nil
+	}
+
+	allPackages := make(map[string]bool)
+	for _, bundle := range defs {
+		for j := range bundle.AllPackages {
+			allPackages[j] = true
+		}
+	}
+	return allPackages, nil
+}
+
+// Definitions is a slice of Definition objects
+type Definitions []*Definition
+
+// SetToSlice creates a slice of bundle definitions
+func SetToSlice(bundleSet DefinitionsSet) Definitions {
+	definitions := make(Definitions, 0, len(bundleSet))
+	for _, bundle := range bundleSet {
+		definitions = append(definitions, bundle)
+	}
+	return definitions
+}
 
 // Implement the global os-core bundle definition, that is used by all bundles
 func initializeOsCore(bundlesDir string) error {
@@ -110,6 +154,13 @@ func updateIncludes(packageInclude, bundlesDir string, b *Definition, visitedInc
 	return nil
 }
 
+func addPackages(line string, b *Definition) {
+	if line != "" && !strings.HasPrefix(line, "#") {
+		b.DirectPackages[line] = true
+		b.AllPackages[line] = true
+	}
+}
+
 func readContent(name, bundlesDir string, b *Definition, visitedIncludes map[string]bool) (*Definition, error) {
 	content, err := ioutil.ReadFile(filepath.Join(bundlesDir, "bundles", name))
 	if err != nil {
@@ -146,10 +197,7 @@ func readContent(name, bundlesDir string, b *Definition, visitedIncludes map[str
 				return nil, err
 			}
 		} else {
-			if line != "" && !strings.HasPrefix(line, "#") {
-				b.DirectPackages[line] = true
-				b.AllPackages[line] = true
-			}
+			addPackages(line, b)
 		}
 	} // end reading file
 	return b, nil
@@ -199,8 +247,8 @@ func GetDefinition(name, bundlesDir string) (*Definition, error) {
 
 // GetAll reads all bundle definitions in the bundlesDir repository and returns a
 // map[string]*Definition of bundle names to their definition structs.
-func GetAll(bundlesDir string) (Set, error) {
-	bundles := make(Set)
+func GetAll(bundlesDir string) (DefinitionsSet, error) {
+	bundles := make(DefinitionsSet)
 	err := filepath.Walk(filepath.Join(bundlesDir, "bundles"), func(p string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -242,43 +290,6 @@ func GetAll(bundlesDir string) (Set, error) {
 		}
 		bundles[line] = pundle
 	}
+
 	return bundles, nil
-}
-
-// GetIncludesForBundle returns a sorted slice of all includes for a specified bundle.
-func GetIncludesForBundle(name, bundlesDir string) ([]string, error) {
-	bundle, err := GetDefinition(name, bundlesDir)
-	if err != nil {
-		return nil, err
-	}
-	return helpers.HashmapToSortedSlice(bundle.Includes)
-}
-
-// GetAllPackagesForBundle returns a sorted slice of all packages for a specified
-// bundle. AllPackages includes the direct packages for a bundle/pundle, along
-// with the direct packages of the bundle includes; so all package dependencies.
-func GetAllPackagesForBundle(name, bundlesDir string) ([]string, error) {
-	bundle, err := GetDefinition(name, bundlesDir)
-	if err != nil {
-		return nil, err
-	}
-	return helpers.HashmapToSortedSlice(bundle.AllPackages)
-}
-
-// GetAllPackagesForAllBundles gets every package used by the bundle definitions.
-// It returns a sorted slice of package names excluding any duplicates.
-func GetAllPackagesForAllBundles(bundlesDir string) ([]string, error) {
-	allPackages := make(map[string]bool)
-
-	bundles, err := GetAll(bundlesDir)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, bundle := range bundles {
-		for p := range bundle.AllPackages {
-			allPackages[p] = true
-		}
-	}
-	return helpers.HashmapToSortedSlice(allPackages)
 }

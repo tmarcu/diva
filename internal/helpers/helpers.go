@@ -225,6 +225,11 @@ func CheckoutRepoTag(repoPath, tag string) error {
 	return RunCommandSilent("git", "-C", repoPath, "checkout", "tags/"+tag)
 }
 
+// CheckoutBranch checkouts a branch of a repo
+func CheckoutBranch(repoPath, branch string) error {
+	return RunCommandSilent("git", "-C", repoPath, "checkout", branch)
+}
+
 // PullRepo runs 'git pull' in the repo at repoPath
 func PullRepo(repoPath string) error {
 	if err := os.MkdirAll(repoPath, 0755); err != nil {

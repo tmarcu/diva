@@ -21,26 +21,28 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/clearlinux/diva/bundle"
 	"github.com/clearlinux/diva/diva"
+	"github.com/clearlinux/diva/internal/config"
 	"github.com/clearlinux/diva/internal/helpers"
 	"github.com/clearlinux/diva/pkginfo"
 	"github.com/spf13/cobra"
 )
 
 type bundleCmdFlags struct {
-	repoName string
-	version  string
-	bundle   string
+	mixName string
+	version string
+	latest  bool
+	bundle  string
 }
 
 // flags passed in as args
 var bundleFlags bundleCmdFlags
 
 func init() {
-	verifyBundlesCmd.Flags().StringVarP(&bundleFlags.repoName, "reponame", "n", "clear", "Name of repo")
-	verifyBundlesCmd.Flags().StringVarP(&bundleFlags.version, "version", "v", "0", "Version to check")
-	verifyBundlesCmd.Flags().StringVarP(&bundleFlags.bundle, "bundle", "b", "", "Bundle to check")
+	verifyBundlesCmd.Flags().StringVarP(&bundleFlags.mixName, "name", "n", "clear", "name of data group")
+	verifyBundlesCmd.Flags().StringVarP(&bundleFlags.version, "version", "v", "0", "version to check")
+	verifyBundlesCmd.Flags().BoolVar(&bundleFlags.latest, "latest", false, "get the latest version from upstreamURL")
+	verifyBundlesCmd.Flags().StringVarP(&bundleFlags.bundle, "bundle", "b", "", "bundle to check")
 }
 
 var verifyBundlesCmd = &cobra.Command{
@@ -50,36 +52,37 @@ var verifyBundlesCmd = &cobra.Command{
 bundle and package bundle files can be found in the configured repo. It also
 ensures no include loops exist, and that the bundle filename matches the bundle
 definition header TITLE. For a <bundle> or the default of all bundles. An
-optional <reponame> and <version> may be used to specify a repo the bundle
+optional <name> and <version> may be used to specify a repo the bundle
 packages completeness will run against with "clear" and "0" as the defaults.`,
 	Run: runVerifyBundle,
 }
 
 func runVerifyBundle(cmd *cobra.Command, args []string) {
-
-	repo := pkginfo.Repo{
-		URI:     "",
-		Name:    bundleFlags.repoName,
-		Version: bundleFlags.version,
-		Type:    "B",
+	u := config.UInfo{
+		MixName: bundleFlags.mixName,
+		Ver:     bundleFlags.version,
+		Latest:  bundleFlags.latest,
 	}
 
+	repo, err := pkginfo.NewRepo(conf, &u)
+	helpers.FailIfErr(err)
+
 	helpers.PrintBegin("Populating repo")
-	err := pkginfo.PopulateRepo(&repo, conf.Paths.CacheLocation)
+	err = pkginfo.PopulateRepo(&repo)
 	helpers.FailIfErr(err)
 	helpers.PrintComplete("Repo populated successfully")
 
-	err = diva.GetLatestBundles(conf, "")
+	bundleInfo, err := pkginfo.NewBundleInfo(conf, &u)
 	helpers.FailIfErr(err)
 
 	result := diva.NewSuite("bundle-verify", "validate bundle correctness")
-	bundles, err := checkAndGetBundleDefinitions(result)
+
+	err = checkBundleDefinitions(result, &bundleInfo, bundleFlags.bundle)
 	helpers.FailIfErr(err)
 
-	checkBundleHeaderTitleMatchesFile(bundles, result)
-
-	err = checkBundleComplete(&repo, bundles, result)
-	helpers.FailIfErr(err)
+	checkBundleDefinitionsComplete(result, &bundleInfo)
+	checkBundleHeaderTitleMatchesFile(result, &bundleInfo)
+	checkBundleRPMs(result, &bundleInfo, &repo)
 
 	err = checkIfPundleDeletesExist(result)
 	helpers.FailIfErr(err)
@@ -89,29 +92,53 @@ func runVerifyBundle(cmd *cobra.Command, args []string) {
 	}
 }
 
-func checkAndGetBundleDefinitions(result *diva.Results) (bundle.Set, error) {
+// TODO: The populating of the bundle definitions within the bundleInfo object
+// should not be a check, but instead they should be populated prior to all
+// checks, and then an include loop check should be here.
+func checkBundleDefinitions(result *diva.Results, bundleInfo *pkginfo.BundleInfo, bundleName string) error {
+	err := pkginfo.PopulateBundles(bundleInfo, bundleName)
+	result.Ok(err == nil, "no include loops")
+	return err
+}
 
-	bundles := make(bundle.Set)
-	var err error
+// checkBundleDefinitionsComplete checks that bundle includes, direct packages,
+// and recurisive dependent packages are not empty sets.
+func checkBundleDefinitionsComplete(result *diva.Results, bundleInfo *pkginfo.BundleInfo) {
+	var failures []string
 
-	if bundleFlags.bundle == "" {
-		bundles, err = bundle.GetAll(conf.Paths.BundleDefsRepo)
-	} else {
-		var singleBundle *bundle.Definition
-		singleBundle, err = bundle.GetDefinition(bundleFlags.bundle, conf.Paths.BundleDefsRepo)
-		if singleBundle != nil {
-			bundles[singleBundle.Name] = singleBundle
+	for _, bundle := range bundleInfo.BundleDefinitions {
+		// A bundle should always include AT LEAST itself
+		if len(bundle.Includes) == 0 {
+			failures = append(failures, fmt.Sprintf("%s does not have any includes", bundle.Name))
+		}
+
+		// Every bundle needs at least one package, whether direct or from an
+		// included bundle
+		if len(bundle.AllPackages) == 0 {
+			failures = append(failures, fmt.Sprintf("%s does not have any packages", bundle.Name))
+		}
+
+		// A bundle can have no direct packages, but it must include another bundle
+		// other than itself.
+		if len(bundle.DirectPackages) == 0 {
+			if _, exists := bundle.Includes[bundle.Name]; exists && len(bundle.Includes) == 1 {
+				failures = append(failures, fmt.Sprintf("%s does not have any direct packages or includes", bundle.Name))
+			}
 		}
 	}
 
-	result.Ok(err == nil, "no include loops")
-	return bundles, err
+	result.Ok(len(failures) == 0, "all bundle definitions complete")
+	if len(failures) > 0 {
+		result.Diagnostic("Incomplete bundles: \n" + strings.Join(failures, "\n"))
+	}
 }
 
-func checkBundleHeaderTitleMatchesFile(bundles bundle.Set, result *diva.Results) {
+// checkBundleHeaderTitleMatchesFile checks that the file name of the bundle
+// matches the bundle name in the header.
+func checkBundleHeaderTitleMatchesFile(result *diva.Results, bundleInfo *pkginfo.BundleInfo) {
 	var failures []string
-	for filename, bundle := range bundles {
-		if filename != bundle.Header.Title {
+	for _, bundle := range bundleInfo.BundleDefinitions {
+		if bundle.Name != bundle.Header.Title {
 			failures = append(failures, bundle.Name)
 		}
 	}
@@ -121,12 +148,14 @@ func checkBundleHeaderTitleMatchesFile(bundles bundle.Set, result *diva.Results)
 	}
 }
 
-func checkBundleComplete(repo *pkginfo.Repo, bundles bundle.Set, result *diva.Results) error {
+// checkBundleRPMs checks that the RPMs for all bundles direct packages
+// exist in the cached repo
+func checkBundleRPMs(result *diva.Results, bundleInfo *pkginfo.BundleInfo, repo *pkginfo.Repo) {
 	var err error
 	var rpm *pkginfo.RPM
 	var failures []string
 
-	for _, bundle := range bundles {
+	for _, bundle := range bundleInfo.BundleDefinitions {
 		for pkg := range bundle.DirectPackages {
 			rpm, err = pkginfo.GetRPM(repo, pkg)
 			if rpm == nil || err != nil {
@@ -138,9 +167,10 @@ func checkBundleComplete(repo *pkginfo.Repo, bundles bundle.Set, result *diva.Re
 	if len(failures) > 0 {
 		result.Diagnostic("missing packages:\n" + strings.Join(failures, "\n"))
 	}
-	return nil
 }
 
+// checkIfPundleDeletesExist determines whether a package bundle was removed
+// since the latest bundle tag.
 func checkIfPundleDeletesExist(result *diva.Results) error {
 	var deleted []string
 	var err error

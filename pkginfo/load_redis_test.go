@@ -18,14 +18,17 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/clearlinux/diva/bundle"
 	"github.com/rafaeljusto/redigomock"
 )
 
 func TestGetRepoRedis(t *testing.T) {
 	repo := &Repo{
-		Name:    "testrepo",
-		Version: "100",
-		Type:    "B",
+		BaseInfo: BaseInfo{
+			Name:    "testrepo",
+			Version: "100",
+		},
+		Type: "B",
 	}
 	repoKey := fmt.Sprintf("%s%s%s", repo.Name, repo.Version, repo.Type)
 	pkgsKey := fmt.Sprintf("%s:packages", repoKey)
@@ -84,5 +87,59 @@ func TestGetRepoRedis(t *testing.T) {
 
 	if p.Files[1].Name != "f2" {
 		t.Errorf("expected file name f2 but got %s", p.Files[1].Name)
+	}
+}
+
+func TestGetBundlesRedis(t *testing.T) {
+	bundleInfo := &BundleInfo{}
+	bundleInfo.BundleDefinitions = make(bundle.DefinitionsSet)
+
+	bundleName := "testpkg"
+	bundlesKey := fmt.Sprintf("%s%sbundles", bundleInfo.Name, bundleInfo.Version)
+	bundleKey := fmt.Sprintf("%s:%s", bundlesKey, bundleName)
+	_ = bundleKey
+
+	conn := redigomock.NewConn()
+	cmds := []*redigomock.Cmd{
+		conn.Command("SMEMBERS", bundlesKey).ExpectStringSlice("testpkg"),
+		conn.Command("HGET", bundleKey, "Name").Expect("testpkg"),
+		conn.Command("GET", bundleKey+":Title").Expect("testpkg"),
+		conn.Command("GET", bundleKey+":Description").Expect("testDesc"),
+		conn.Command("GET", bundleKey+":Status").Expect("teststatus"),
+		conn.Command("GET", bundleKey+":Capabilities").Expect("testcap"),
+		conn.Command("GET", bundleKey+":Maintainer").Expect("testuser"),
+		conn.Command("SMEMBERS", bundleKey+":includes").ExpectStringSlice("incs", "things"),
+		conn.Command("SMEMBERS", bundleKey+":directPackages").ExpectStringSlice("direct packages"),
+		conn.Command("SMEMBERS", bundleKey+":allPackages").ExpectStringSlice("all packages", "in", "a", "slice_yeah"),
+	}
+
+	// test single bundle
+	err := getBundlesRedis(conn, bundleInfo, bundleName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, bun := range bundleInfo.BundleDefinitions {
+		if bun.Name != bundleName {
+			t.Errorf("expected bundle name %s, but got %s", bundleName, bun.Name)
+		}
+		if bun.Header.Capabilities != "testcap" {
+			t.Errorf("expected bundle Header Capabilities testcap, but got %s", bun.Header.Capabilities)
+		}
+		if _, ok := bun.AllPackages["slice_yeah"]; !ok {
+			t.Error("expected slice_yeah to be in AllPackages, but wasn't found")
+		}
+	}
+
+	// test all bundles
+	err = getBundlesRedis(conn, bundleInfo, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, c := range cmds {
+		if conn.Stats(c) == 0 {
+			t.Errorf("expected command %s %s was not called", c.Name, c.Args)
+		}
 	}
 }

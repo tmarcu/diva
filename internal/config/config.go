@@ -49,7 +49,52 @@ type Config struct {
 	BundleDefsURL string     `toml:"bundles_url"`
 }
 
-func defaultConf() Config {
+// UInfo contains information used by all commands that is defaulted with
+// config values, and updated with flags and other constraints to create
+// the different data structs.
+type UInfo struct {
+	Ver         string
+	Latest      bool
+	URL         string
+	MixName     string
+	Update      bool
+	CacheLoc    string
+	RepoURL     string
+	RPMCache    string
+	RPMType     string
+	BundleURL   string
+	BundleCache string
+	Recursive   bool
+	MinVer      uint
+}
+
+// UpdateConfigInstance modifies the default config instance values with any
+// args that were passed in as flags
+func UpdateConfigInstance(conf *Config, u UInfo) {
+	if u.URL != "" {
+		conf.UpstreamURL = u.URL
+	}
+
+	// TODO: u.CacheLoc has no way of being modified from args yet
+	if u.CacheLoc != "" {
+		conf.Paths.CacheLocation = u.CacheLoc
+	}
+
+	if u.BundleURL != "" {
+		conf.BundleDefsURL = u.BundleURL
+	}
+
+	if u.RPMCache != "" {
+		conf.Paths.LocalRPMRepo = u.RPMCache
+	}
+
+	if u.BundleCache != "" {
+		conf.Paths.BundleDefsRepo = u.BundleCache
+	}
+}
+
+// DefaultConf is the default, and last fall back for the config object
+func DefaultConf() Config {
 	ws := filepath.Join(os.Getenv("HOME"), "clearlinux")
 	return Config{
 		mixConfig{
@@ -74,7 +119,7 @@ func defaultConf() Config {
 // userConfig    "$HOME/.config/diva/config.toml"
 func ReadConfig(configPath string) (*Config, error) {
 	var err error
-	c := defaultConf()
+	c := DefaultConf()
 	userConfPath := filepath.Join(os.Getenv("HOME"), userConfig)
 	// return the first configuration file found, check in the following order
 	order := []string{configPath, userConfPath, systemConfig, defaultConfig}
