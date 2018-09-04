@@ -3,16 +3,23 @@ package cmd
 import (
 	"debug/elf"
 	"fmt"
-	"github.com/spf13/cobra"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/clearlinux/diva/diva"
+	"github.com/spf13/cobra"
 )
 
 const canaryString = "__stack_chk_fail"
+
+var chirpFlag bool
+
+func init() {
+	chirpCmd.Flags().BoolVar(&chirpFlag, "chirp", false, "Print number of errors in chirps")
+	_ = chirpCmd.Flags().MarkHidden("chirp")
+}
 
 var chirpCmd = &cobra.Command{
 	Use:   "canary <full chroot1> <full chroot2>",
@@ -158,11 +165,4 @@ func runCanaryCheck(r *diva.Results, u diva.UInfo, args []string) (errs, warning
 		}
 	}
 	return errs, warnings
-}
-
-var chirpFlag bool
-
-func init() {
-	chirpCmd.Flags().BoolVar(&chirpFlag, "chirp", false, "Print number of errors in chirps")
-	_ = chirpCmd.Flags().MarkHidden("chirp")
 }
