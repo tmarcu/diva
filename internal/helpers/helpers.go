@@ -203,16 +203,16 @@ func RunCommandOutput(cmdname string, args ...string) (*bytes.Buffer, error) {
 	err := cmd.Run()
 	if err != nil {
 		var buf bytes.Buffer
-		fmt.Fprintf(&buf, ": failed to execute %s", strings.Join(cmd.Args, " "))
+		_, _ = fmt.Fprintf(&buf, ": failed to execute %s", strings.Join(cmd.Args, " "))
 		if outBuf.Len() > 0 {
-			fmt.Fprintf(&buf, "\nSTDOUT:\n%s", outBuf.Bytes())
+			_, _ = fmt.Fprintf(&buf, "\nSTDOUT:\n%s", outBuf.Bytes())
 		}
 		if errBuf.Len() > 0 {
-			fmt.Fprintf(&buf, "\nSTDERR:\n%s", errBuf.Bytes())
+			_, _ = fmt.Fprintf(&buf, "\nSTDERR:\n%s", errBuf.Bytes())
 		}
 		if outBuf.Len() > 0 || errBuf.Len() > 0 {
 			// Finish without a newline to wrap well with the err.
-			fmt.Fprintf(&buf, "failed to execute")
+			_, _ = fmt.Fprintf(&buf, "failed to execute")
 		}
 		return &outBuf, errors.New(err.Error() + buf.String())
 	}
@@ -279,19 +279,19 @@ func TarExtractURL(url, target string) error {
 
 // PrintBegin prints the beginning of a task
 func PrintBegin(message string, fmts ...interface{}) {
-	fmt.Fprintln(os.Stderr, fmt.Sprintf(fmt.Sprintf("--> %s", message), fmts...))
+	_, _ = fmt.Fprintln(os.Stderr, fmt.Sprintf(fmt.Sprintf("--> %s", message), fmts...))
 }
 
 // PrintComplete prints completion of a task
 func PrintComplete(message string, fmts ...interface{}) {
-	fmt.Fprintln(os.Stderr, fmt.Sprintf(fmt.Sprintf("    %s", message), fmts...))
+	_, _ = fmt.Fprintln(os.Stderr, fmt.Sprintf(fmt.Sprintf("    %s", message), fmts...))
 }
 
 // FailIfErr prints the error and exits the program with an error code if err
 // is not nil
 func FailIfErr(err error) {
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s: ERROR: %s\n", os.Args[0], err)
+		_, _ = fmt.Fprintf(os.Stderr, "%s: ERROR: %s\n", os.Args[0], err)
 		os.Exit(1)
 	}
 }

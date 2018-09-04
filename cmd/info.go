@@ -78,17 +78,17 @@ func rpminfo(w io.Writer, args []string) {
 
 	for i, path := range args {
 		if i > 0 {
-			fmt.Fprintf(w, "\n")
+			_, _ = fmt.Fprintf(w, "\n")
 		}
 
 		p, err := rpm.OpenPackageFile(path)
 		if err != nil {
-			fmt.Fprintf(w, "error reading %s: %v\n", path, err)
+			_, _ = fmt.Fprintf(w, "error reading %s: %v\n", path, err)
 			continue
 		}
 
 		if err := qf.Execute(w, p); err != nil {
-			fmt.Fprintf(w, "error formatting %s: %v\n", path, err)
+			_, _ = fmt.Fprintf(w, "error formatting %s: %v\n", path, err)
 			continue
 		}
 	}
