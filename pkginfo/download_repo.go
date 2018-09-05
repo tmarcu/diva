@@ -31,9 +31,9 @@ import (
 // file.  We cannot just look for the filelists file directly because a hash is
 // part of the filename. The repomd.xml file lists this file name so we can
 // construct the url using this value.
-func buildFilelistsURL(repo *Repo, workingDir string, update bool) (string, error) {
+func buildFilelistsURL(repo *Repo, update bool) (string, error) {
 	// download repomd.xml
-	repomdFile := filepath.Join(workingDir, "repomd.xml")
+	repomdFile := filepath.Join(filepath.Dir(repo.RPMCache), "repomd.xml")
 	repomdURL := fmt.Sprintf("%s/repodata/repomd.xml", repo.URI)
 
 	var err error
@@ -86,40 +86,25 @@ func buildFilelistsURL(repo *Repo, workingDir string, update bool) (string, erro
 	return fmt.Sprintf("%s/%s", repo.URI, path), nil
 }
 
-// If a version changed from what was in the cache, return true, otherwise false
-func versionChanged(rpmURL, cacheDir string, cRPM *rpm.PackageFile) bool {
-	newRPM, err := rpm.OpenPackageFile(rpmURL)
-	if err != nil {
-		return true
-	}
-	// VersionCompare returns 1 if newRPM is more recent, -1 if cRPM is more recent
-	// and 0, if they're the same.
-	return rpm.VersionCompare(newRPM, cRPM) == 1
-}
-
 // If a RPM needs to be redownloaded, return true, otherwise return false
-func updateCache(cachedRPMs []*rpm.PackageFile, rpmName, rpmURL, cacheDir string) bool {
-	for _, cRPM := range cachedRPMs {
-		if cRPM.Name() == rpmName {
-			if !versionChanged(rpmURL, cacheDir, cRPM) {
-				return false
-			}
-			staleRPM := fmt.Sprintf("%s/%s-%s-%s.%s.rpm",
-				cacheDir,
-				cRPM.Name(),
-				cRPM.Version(),
-				cRPM.Release(),
-				cRPM.Architecture(),
-			)
-			if err := os.Remove(staleRPM); err != nil {
-				return true
-			}
-		}
+func updateCache(newRPM, rpmCache string, cRPM *rpm.PackageFile) bool {
+	cachedRPM := fmt.Sprintf("%s-%s-%s.%s.rpm",
+		cRPM.Name(),
+		cRPM.Version(),
+		cRPM.Release(),
+		cRPM.Architecture(),
+	)
+
+	if cachedRPM == newRPM {
+		return false
 	}
+
+	cachedRPMURL := filepath.Join(rpmCache, cachedRPM)
+	_ = os.Remove(cachedRPMURL)
 	return true
 }
 
-func buildPackageURLs(repo *Repo, flistsPath, workingDir string, update bool) ([]string, error) {
+func buildPackageURLs(repo *Repo, flistsPath string, upgrade bool) ([]string, error) {
 	// <filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="7436">
 	//   <package ... name="pkgname" arch="x86_64">
 	//     <version ... ver="ver" rel="rel"/>
@@ -150,34 +135,41 @@ func buildPackageURLs(repo *Repo, flistsPath, workingDir string, update bool) ([
 		return []string{}, err
 	}
 
-	cacheDir := filepath.Join(workingDir, "packages")
-	if err = os.MkdirAll(cacheDir, 0755); err != nil {
+	if err = os.MkdirAll(repo.RPMCache, 0755); err != nil {
 		return []string{}, err
 	}
-	cachedRPMs, err := rpm.OpenPackageFiles(cacheDir)
-	if err != nil {
-		return []string{}, err
+
+	// convert slice to map for faster rpm lookup
+	cachedRPMs := map[string]*rpm.PackageFile{}
+	if upgrade {
+		cRPMs, err := rpm.OpenPackageFiles(repo.RPMCache)
+		if err != nil {
+			return []string{}, err
+		}
+		for _, c := range cRPMs {
+			cachedRPMs[c.Name()] = c
+		}
 	}
 
 	packages := []string{}
-	url := fmt.Sprintf("%s/Packages", repo.URI)
 	for _, p := range v.Packages {
-		rpmURL := fmt.Sprintf("%s/%s-%s-%s.%s.rpm", url, p.Name, p.VR.V, p.VR.R, p.Arch)
-		if update {
-			if !updateCache(cachedRPMs, p.Name, rpmURL, cacheDir) {
-				continue
+		rpm := fmt.Sprintf("%s-%s-%s.%s.rpm", p.Name, p.VR.V, p.VR.R, p.Arch)
+		if upgrade {
+			if cRPM, exists := cachedRPMs[p.Name]; exists {
+				if !updateCache(rpm, repo.RPMCache, cRPM) {
+					continue
+				}
 			}
 		}
+		rpmURL := fmt.Sprintf("%s/Packages/%s", repo.URI, rpm)
 		packages = append(packages, rpmURL)
 	}
-
 	return packages, nil
 }
 
-func downloadAllRPMs(packages []string, workingDir string) error {
+func downloadAllRPMs(packages []string, rpmCache string) error {
 	// ensure directory in cache exists
-	outPath := filepath.Join(workingDir, "packages")
-	if err := os.MkdirAll(outPath, 0755); err != nil {
+	if err := os.MkdirAll(rpmCache, 0755); err != nil {
 		return err
 	}
 	var wg sync.WaitGroup
@@ -190,7 +182,7 @@ func downloadAllRPMs(packages []string, workingDir string) error {
 	dlWorker := func() {
 		for url := range urlCh {
 			base := filepath.Base(url)
-			outFile := filepath.Join(outPath, base)
+			outFile := filepath.Join(rpmCache, base)
 			var dlErr error
 			// do not download again if it already exists
 			if _, dlErr = os.Stat(outFile); dlErr != nil {
@@ -250,7 +242,7 @@ func DownloadRepoFiles(repo *Repo, update bool) error {
 		return err
 	}
 
-	url, err := buildFilelistsURL(repo, workingDir, update)
+	url, err := buildFilelistsURL(repo, update)
 	if err != nil {
 		return err
 	}
@@ -267,7 +259,7 @@ func DownloadRepoFiles(repo *Repo, update bool) error {
 		return err
 	}
 
-	packages, err := buildPackageURLs(repo, flistsPath, workingDir, update)
+	packages, err := buildPackageURLs(repo, flistsPath, update)
 	if err != nil {
 		return err
 	}
