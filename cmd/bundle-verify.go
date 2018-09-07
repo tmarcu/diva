@@ -85,7 +85,10 @@ func runVerifyBundle(cmd *cobra.Command, args []string) {
 	checkBundleHeaderTitleMatchesFile(result, &bundleInfo)
 	checkBundleRPMs(result, &bundleInfo, &repo)
 
-	err = checkIfPundleDeletesExist(result)
+	err = checkIfPundleDeletesExist(result, bundleInfo.Tag)
+	helpers.FailIfErr(err)
+
+	err = checkIfBundleDeletesExist(result, bundleInfo.Tag)
 	helpers.FailIfErr(err)
 
 	if result.Failed > 0 {
@@ -182,20 +185,21 @@ func checkBundleRPMs(result *diva.Results, bundleInfo *pkginfo.BundleInfo, repo 
 
 // checkIfPundleDeletesExist determines whether a package bundle was removed
 // since the latest bundle tag.
-func checkIfPundleDeletesExist(result *diva.Results) error {
+func checkIfPundleDeletesExist(result *diva.Results, tag string) error {
 	var deleted []string
 	var err error
 
 	output, err := helpers.RunCommandOutput(
-		"git", "-C", conf.Paths.BundleDefsRepo, "diff", "latest..HEAD", "packages",
+		"git", "-C", conf.Paths.BundleDefsRepo, "diff", tag+"..HEAD", "packages",
 	)
 	if err != nil {
 		return err
 	}
 
 	scanner := bufio.NewScanner(output)
+	pattern := regexp.MustCompile(`^-[^-]`)
 	for scanner.Scan() {
-		matches := regexp.MustCompile(`^-[^-]`).FindStringSubmatch(scanner.Text())
+		matches := pattern.FindStringSubmatch(scanner.Text())
 		if len(matches) > 0 {
 			deleted = append(deleted, scanner.Text())
 		}
@@ -203,6 +207,35 @@ func checkIfPundleDeletesExist(result *diva.Results) error {
 	result.Ok(len(deleted) == 0, "package bundles not deleted in release")
 	if len(deleted) > 0 {
 		result.Diagnostic("deleted package bundles:\n" + strings.Join(deleted, "\n"))
+	}
+	return nil
+}
+
+// checkIfBundleDeletesExist determines whether a bundle was removed
+func checkIfBundleDeletesExist(result *diva.Results, tag string) error {
+	var deleted []string
+	var err error
+
+	output, err := helpers.RunCommandOutput("git", "-C", conf.Paths.BundleDefsRepo,
+		"log", "--diff-filter=D", tag+"..HEAD", "--summary")
+	if err != nil {
+		return err
+	}
+
+	scanner := bufio.NewScanner(output)
+	pattern := regexp.MustCompile(`^\sdelete.*bundles/.*$`)
+	for scanner.Scan() {
+		// typically lines are formatted like: ' delete mode 100644 bundles/<bundleName'
+		// ^\sdelete\smode\s[0-9]*\sbundles/.*$
+		matches := pattern.FindStringSubmatch(scanner.Text())
+		if len(matches) > 0 {
+			s := strings.Split(scanner.Text(), "/")
+			deleted = append(deleted, fmt.Sprintf("Bundle file deleted: %s", s[len(s)-1]))
+		}
+	}
+	result.Ok(len(deleted) == 0, "bundles not deleted in release")
+	if len(deleted) > 0 {
+		result.Diagnostic("deleted bundle:\n" + strings.Join(deleted, "\n"))
 	}
 	return nil
 }

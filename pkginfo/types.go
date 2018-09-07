@@ -35,6 +35,7 @@ type BaseInfo struct {
 func (b *BaseInfo) updateBaseInfo(u *config.UInfo) error {
 	var err error
 	if b.Version == "latest" || (b.Version == "0" && u.Latest) {
+		u.Latest = true
 		b.Version, err = helpers.GetLatestVersion(b.UpstreamURL)
 	}
 	if b.Name == "" {
