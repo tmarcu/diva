@@ -151,6 +151,11 @@ func buildPackageURLs(repo *Repo, flistsPath string, upgrade bool) ([]string, er
 		}
 	}
 
+	rpmURL := repo.URI
+	if repo.Type == "B" {
+		rpmURL = fmt.Sprintf("%s/Packages", repo.URI)
+	}
+
 	packages := []string{}
 	for _, p := range v.Packages {
 		rpm := fmt.Sprintf("%s-%s-%s.%s.rpm", p.Name, p.VR.V, p.VR.R, p.Arch)
@@ -161,8 +166,7 @@ func buildPackageURLs(repo *Repo, flistsPath string, upgrade bool) ([]string, er
 				}
 			}
 		}
-		rpmURL := fmt.Sprintf("%s/Packages/%s", repo.URI, rpm)
-		packages = append(packages, rpmURL)
+		packages = append(packages, fmt.Sprintf("%s/%s", rpmURL, rpm))
 	}
 	return packages, nil
 }
@@ -182,7 +186,7 @@ func downloadAllRPMs(packages []string, rpmCache string) error {
 	dlWorker := func() {
 		for url := range urlCh {
 			base := filepath.Base(url)
-			outFile := filepath.Join(rpmCache, base)
+			outFile := filepath.Join(rpmCache, "packages", base)
 			var dlErr error
 			// do not download again if it already exists
 			if _, dlErr = os.Stat(outFile); dlErr != nil {

@@ -46,9 +46,9 @@ func Max(a, b string) string {
 	return b
 }
 
-// download does a simple http.Get on the url and performs a check against the
+// CheckStatus does a simple http.Get on the url and performs a check against the
 // error code. The response body is only returned for StatusOK
-func download(url string) (*http.Response, error) {
+func CheckStatus(url string) (*http.Response, error) {
 	resp, err := http.Get(url)
 	if err != nil {
 		return &http.Response{}, err
@@ -66,7 +66,7 @@ func download(url string) (*http.Response, error) {
 // know the file at url is not compressed or if you want to download a
 // compressed file as-is.
 func Download(url, filename string, overwrite bool) error {
-	resp, err := download(url)
+	resp, err := CheckStatus(url)
 	if err != nil {
 		return err
 	}
@@ -133,7 +133,7 @@ func DownloadFile(url, target string, overwrite bool) error {
 // gzExtractURL will download a file at the url and extract it to the target
 // location
 func gzExtractURL(url, target string, overwrite bool) error {
-	resp, err := download(url)
+	resp, err := CheckStatus(url)
 	if err != nil {
 		return err
 	}

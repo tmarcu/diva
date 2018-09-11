@@ -27,9 +27,10 @@ type allFetchFlags struct {
 	version         string
 	latest          bool
 	upstreamURL     string
-	rpmType         string
 	upstreamRepoURL string
 	rpmCache        string
+	binaryRPM       bool
+	sourceRPM       bool
 	bundleURL       string
 	bundleCache     string
 	update          bool
@@ -113,7 +114,8 @@ func init() {
 
 	fetchAllCmd.Flags().StringVarP(&fetchFlags.upstreamRepoURL, "repourl", "m", "", "fully qualified URL from which to pull repodata")
 	fetchAllCmd.Flags().StringVar(&fetchFlags.rpmCache, "rpmcache", "", "path to repo cache destination")
-	fetchAllCmd.Flags().StringVar(&fetchFlags.rpmType, "rpmtype", "B", "type of rpm")
+	fetchAllCmd.Flags().BoolVar(&fetchFlags.binaryRPM, "binary", false, "fetches only binary RPMs")
+	fetchAllCmd.Flags().BoolVar(&fetchFlags.sourceRPM, "source", false, "fetches only SRPMs")
 	fetchAllCmd.Flags().StringVarP(&fetchFlags.bundleURL, "bundleurl", "b", "", "URL from which to pull bundle definitions")
 	fetchAllCmd.Flags().StringVar(&fetchFlags.bundleURL, "bundlecache", "", "path to bundle cache destination")
 	fetchAllCmd.Flags().BoolVar(&fetchFlags.update, "update", false, "update pre-existing Repo data")
@@ -121,8 +123,9 @@ func init() {
 
 	fetchRepoCmd.Flags().StringVarP(&fetchFlags.upstreamRepoURL, "repourl", "m", "", "fully qualified URL from which to pull repodata")
 	fetchRepoCmd.Flags().StringVar(&fetchFlags.rpmCache, "rpmcache", "", "path to repo cache destination")
-	fetchRepoCmd.Flags().StringVar(&fetchFlags.rpmType, "rpmtype", "B", "type of rpm")
 	fetchRepoCmd.Flags().BoolVar(&fetchFlags.update, "update", false, "update data with upstream")
+	fetchRepoCmd.Flags().BoolVar(&fetchFlags.binaryRPM, "binary", false, "fetches only binary RPMs")
+	fetchRepoCmd.Flags().BoolVar(&fetchFlags.sourceRPM, "source", false, "fetches only SRPMs")
 
 	fetchBundlesCmd.Flags().StringVarP(&fetchFlags.bundleURL, "bundleurl", "b", "", "URL from which to pull bundle definitions")
 	fetchBundlesCmd.Flags().StringVar(&fetchFlags.bundleURL, "bundlecache", "", "path to bundle cache destination")
@@ -139,7 +142,6 @@ func newUinfo() config.UInfo {
 		Update:      fetchFlags.update,
 		RepoURL:     fetchFlags.upstreamRepoURL,
 		RPMCache:    fetchFlags.rpmCache,
-		RPMType:     fetchFlags.rpmType,
 		BundleURL:   fetchFlags.bundleURL,
 		BundleCache: fetchFlags.bundleCache,
 	}
@@ -148,25 +150,28 @@ func newUinfo() config.UInfo {
 }
 
 func runFetchAllCmd(cmd *cobra.Command, args []string) {
-	var err error
-	u := newUinfo()
-
-	err = diva.FetchRepo(conf, &u)
-	helpers.FailIfErr(err)
-
-	err = diva.FetchBundles(conf, &u)
-	helpers.FailIfErr(err)
-
-	err = diva.FetchUpdate(conf, &u)
-	helpers.FailIfErr(err)
+	runFetchRepoCmd(cmd, args)
+	runFetchBundlesCmd(cmd, args)
+	runFetchUpdateCmd(cmd, args)
 }
 
 func runFetchRepoCmd(cmd *cobra.Command, args []string) {
 	var err error
 	u := newUinfo()
 
-	err = diva.FetchRepo(conf, &u)
-	helpers.FailIfErr(err)
+	// by default download both SRPMs and binary RPMs, however allow the user to
+	// pass either a "binary" or "source" flag to download only one
+	if fetchFlags.binaryRPM || (!fetchFlags.binaryRPM && !fetchFlags.sourceRPM) {
+		u.RPMType = "B"
+		err = diva.FetchRepo(conf, &u)
+		helpers.FailIfErr(err)
+	}
+
+	if fetchFlags.sourceRPM || (!fetchFlags.binaryRPM && !fetchFlags.sourceRPM) {
+		u.RPMType = "SRPM"
+		err = diva.FetchRepo(conf, &u)
+		helpers.FailIfErr(err)
+	}
 }
 
 func runFetchBundlesCmd(cmd *cobra.Command, args []string) {
