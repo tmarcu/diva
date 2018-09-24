@@ -38,7 +38,6 @@ type bundleCmdFlags struct {
 var bundleFlags bundleCmdFlags
 
 func init() {
-	checkCmd.AddCommand(verifyBundlesCmd)
 	verifyBundlesCmd.Flags().StringVarP(&bundleFlags.repoName, "reponame", "n", "clear", "Name of repo")
 	verifyBundlesCmd.Flags().StringVarP(&bundleFlags.version, "version", "v", "0", "Version to check")
 	verifyBundlesCmd.Flags().StringVarP(&bundleFlags.bundle, "bundle", "b", "", "Bundle to check")

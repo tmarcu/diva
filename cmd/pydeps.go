@@ -38,7 +38,6 @@ type pyDepsCmdFlags struct {
 var pipFlags pyDepsCmdFlags
 
 func init() {
-	checkCmd.AddCommand(pyDepsCmd)
 	pyDepsCmd.Flags().StringVarP(&pipFlags.path, "path", "p", "", "path to full chroot")
 	pyDepsCmd.Flags().StringVarP(&pipFlags.version, "version", "v", "0", "version to check")
 	pyDepsCmd.Flags().StringVarP(&pipFlags.repoName, "reponame", "n", "clear", "Name of repo")
