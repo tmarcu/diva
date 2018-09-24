@@ -154,8 +154,6 @@ of every bundle from one build only`,
 }
 
 func init() {
-	checkCmd.AddCommand(bloatCheckCmd)
-
 	bloatCheckCmd.Flags().BoolVarP(&bloatFlags.printOutput, "print", "p", false, "Print out bundles that increased in size")
 	bloatCheckCmd.Flags().Float64Var(&bloatFlags.failCap, "max", 10.0, "Set the max % a high priority bundle may increase.")
 	bloatCheckCmd.Flags().Float64Var(&bloatFlags.warningCap, "warn", 20.0, "Set the % bundle size change that will emit a warning.")

@@ -26,7 +26,6 @@ import (
 )
 
 func init() {
-	checkCmd.AddCommand(ucCmd)
 	ucCmd.Flags().UintVarP(&ucFlags.version, "version", "v", 0, "version to check")
 	ucCmd.Flags().BoolVarP(&ucFlags.recursive, "recursive", "r", false, "perform complete recursive check")
 }
