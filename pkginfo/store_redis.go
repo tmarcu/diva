@@ -20,15 +20,6 @@ import (
 	"github.com/gomodule/redigo/redis"
 )
 
-func storeIterableRedisSet(c redis.Conn, key string, value []string) error {
-	for i := range value {
-		if err := c.Send("SADD", key, value[i]); err != nil {
-			return err
-		}
-	}
-	return c.Flush()
-}
-
 // storeRepoInfoRedis stores all data in repo to the running redis-server
 func storeRepoInfoRedis(c redis.Conn, repo *Repo) error {
 	repoKey := fmt.Sprintf("%s%s%s", repo.Name, repo.Version, repo.Type)
@@ -55,18 +46,6 @@ func storeRPMInfoRedis(c redis.Conn, repo *Repo, rpm *RPM) error {
 	pkgKey := fmt.Sprintf("%s:%s", repoKey, rpm.Name)
 	_, err := c.Do("HMSET", redis.Args{}.Add(pkgKey).AddFlat(rpm)...)
 	if err != nil {
-		return err
-	}
-
-	// store the requires
-	rKey := pkgKey + ":requires"
-	if err := storeIterableRedisSet(c, rKey, rpm.Requires); err != nil {
-		return err
-	}
-
-	// store the provides
-	pKey := pkgKey + ":provides"
-	if err := storeIterableRedisSet(c, pKey, rpm.Provides); err != nil {
 		return err
 	}
 
