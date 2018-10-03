@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package pkginfo
+package download
 
 import (
 	"encoding/xml"
@@ -25,13 +25,14 @@ import (
 
 	rpm "github.com/cavaliercoder/go-rpm"
 	"github.com/clearlinux/diva/internal/helpers"
+	"github.com/clearlinux/diva/pkginfo"
 )
 
 // buildFileListsURL parses upstream repomd.xml file to find the filelists
 // file.  We cannot just look for the filelists file directly because a hash is
 // part of the filename. The repomd.xml file lists this file name so we can
 // construct the url using this value.
-func buildFilelistsURL(repo *Repo, update bool) (string, error) {
+func buildFilelistsURL(repo *pkginfo.Repo, update bool) (string, error) {
 	// download repomd.xml
 	repomdFile := filepath.Join(filepath.Dir(repo.RPMCache), "repomd.xml")
 	repomdURL := fmt.Sprintf("%s/repodata/repomd.xml", repo.URI)
@@ -104,7 +105,7 @@ func updateCache(newRPM, rpmCache string, cRPM *rpm.PackageFile) bool {
 	return true
 }
 
-func buildPackageURLs(repo *Repo, flistsPath string, upgrade bool) ([]string, error) {
+func buildPackageURLs(repo *pkginfo.Repo, flistsPath string, upgrade bool) ([]string, error) {
 	// <filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="7436">
 	//   <package ... name="pkgname" arch="x86_64">
 	//     <version ... ver="ver" rel="rel"/>
@@ -235,11 +236,11 @@ func downloadAllRPMs(packages []string, rpmCache string) error {
 	return nil
 }
 
-// DownloadRepoFiles downloads all RPM packages from the RPM repo at the given
+// RepoFiles downloads all RPM packages from the RPM repo at the given
 // baseURL by first parsing the repo metadata. These packages are downloaded to
 // the c.CacheLocation/rpms/<version>/packages/ if they do not already exist
 // there.
-func DownloadRepoFiles(repo *Repo, update bool) error {
+func RepoFiles(repo *pkginfo.Repo, update bool) error {
 
 	workingDir := filepath.Dir(repo.RPMCache)
 	if err := os.MkdirAll(workingDir, 0755); err != nil {

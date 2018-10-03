@@ -246,25 +246,6 @@ func CloneRepo(gitURL, repoParent string) error {
 	return RunCommandSilent("git", "-C", repoParent, "clone", gitURL)
 }
 
-// DownloadManifest downloads a manifest to outF
-func DownloadManifest(baseURL string, version string, component, outF string) error {
-	if _, err := os.Lstat(outF); err == nil {
-		return nil
-	}
-	url := fmt.Sprintf("%s/update/%s/Manifest.%s.tar", baseURL, version, component)
-
-	err := os.MkdirAll(filepath.Dir(outF), 0744)
-	if err != nil {
-		return err
-	}
-	err = TarExtractURL(url, outF)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // TarExtractURL downloads a tar file from a URL and extracts it to target
 func TarExtractURL(url, target string) error {
 	err := os.MkdirAll(filepath.Dir(target), 0777)

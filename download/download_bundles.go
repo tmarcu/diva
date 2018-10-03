@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package pkginfo
+package download
 
 import (
 	"fmt"
@@ -21,9 +21,10 @@ import (
 	"strings"
 
 	"github.com/clearlinux/diva/internal/helpers"
+	"github.com/clearlinux/diva/pkginfo"
 )
 
-func doCloneBundleRepo(bundleInfo BundleInfo) bool {
+func doCloneBundleRepo(bundleInfo pkginfo.BundleInfo) bool {
 	if _, err := os.Stat(bundleInfo.BundleCache); err != nil {
 		return true
 	}
@@ -41,11 +42,11 @@ func doCloneBundleRepo(bundleInfo BundleInfo) bool {
 	return false
 }
 
-// DownloadBundles clones or pulls the latest clr-bundles definitions to
+// Bundles clones or pulls the latest clr-bundles definitions to
 // to the desired cache location and checking out the version tag. It also
 // modifies the bundleInfo object by storing the current branch name for future
 // use and cleanup.
-func DownloadBundles(bundleInfo *BundleInfo) error {
+func Bundles(bundleInfo *pkginfo.BundleInfo) error {
 	var err error
 
 	if doCloneBundleRepo(*bundleInfo) {
