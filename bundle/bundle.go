@@ -133,7 +133,9 @@ func newDefinition(name, bundlesDir string) (Definition, error) {
 
 func updateIncludes(packageInclude, bundlesDir string, b *Definition, visitedIncludes map[string]bool) error {
 	if _, exists := visitedIncludes[packageInclude]; exists {
-		return fmt.Errorf("Bundle include loop detected with %s and %s", b.Name, packageInclude)
+		b.Includes[packageInclude] = false
+		visitedIncludes[packageInclude] = false
+		return nil
 	}
 
 	visitedIncludes[packageInclude] = true
@@ -152,6 +154,15 @@ func updateIncludes(packageInclude, bundlesDir string, b *Definition, visitedInc
 	}
 
 	return nil
+}
+
+func isCycle(includes map[string]bool) bool {
+	for _, v := range includes {
+		if !v {
+			return true
+		}
+	}
+	return false
 }
 
 func addPackages(line string, b *Definition) {
@@ -192,6 +203,9 @@ func readContent(name, bundlesDir string, b *Definition, visitedIncludes map[str
 			continue
 		} else if matches := includeBundleRegex.FindStringSubmatch(line); len(matches) > 1 {
 			err := updateIncludes(matches[1], bundlesDir, b, visitedIncludes)
+			if isCycle(b.Includes) || isCycle(visitedIncludes) {
+				continue
+			}
 			visitedIncludes = make(map[string]bool)
 			if err != nil {
 				return nil, err

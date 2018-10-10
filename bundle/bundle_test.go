@@ -414,9 +414,22 @@ func TestCyclicalIncludes(t *testing.T) {
 		testData.addBundle(bundle.name, filepath.Join("bundles", bundle.name), bundle.content...)
 	}
 
-	_, err := GetDefinition("cycle2", testData.testdir)
-	if strings.TrimSpace(err.Error()) != "Bundle include loop detected with cycle5 and cycle3" || err == nil {
-		t.Fatalf("error %s did not match expected 'Bundle include loop detected'", err.Error())
+	var foundInclude bool
+	bundles, err := GetAll(testData.testdir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, b := range bundles {
+		for _, v := range b.Includes {
+			if !v {
+				foundInclude = true
+			}
+		}
+	}
+
+	if !foundInclude {
+		t.Fatal("error unable to detect include loop")
 	}
 }
 

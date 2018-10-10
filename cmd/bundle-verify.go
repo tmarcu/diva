@@ -77,9 +77,10 @@ func runVerifyBundle(cmd *cobra.Command, args []string) {
 
 	result := diva.NewSuite("bundle-verify", "validate bundle correctness")
 
-	err = checkBundleDefinitions(result, &bundleInfo, bundleFlags.bundle)
+	err = pkginfo.PopulateBundles(&bundleInfo, bundleFlags.bundle)
 	helpers.FailIfErr(err)
 
+	checkIncludeLoops(result, &bundleInfo)
 	checkBundleDefinitionsComplete(result, &bundleInfo)
 	checkBundleHeaderTitleMatchesFile(result, &bundleInfo)
 	checkBundleRPMs(result, &bundleInfo, &repo)
@@ -92,13 +93,23 @@ func runVerifyBundle(cmd *cobra.Command, args []string) {
 	}
 }
 
-// TODO: The populating of the bundle definitions within the bundleInfo object
-// should not be a check, but instead they should be populated prior to all
-// checks, and then an include loop check should be here.
-func checkBundleDefinitions(result *diva.Results, bundleInfo *pkginfo.BundleInfo, bundleName string) error {
-	err := pkginfo.PopulateBundles(bundleInfo, bundleName)
-	result.Ok(err == nil, "no include loops")
-	return err
+// checkIncludeLoops iterates the includes in the bundle definitions, and if
+// an include is found with a false value associated then we know an include
+// loop has been detected. The detection functionality is in the bundle library
+func checkIncludeLoops(result *diva.Results, bundleInfo *pkginfo.BundleInfo) {
+	var failures []string
+
+	for _, bundle := range bundleInfo.BundleDefinitions {
+		for k, v := range bundle.Includes {
+			if !v {
+				failures = append(failures, fmt.Sprintf("%s has include loop with %s", bundle.Name, k))
+			}
+		}
+	}
+	result.Ok(len(failures) == 0, "no include loops found")
+	if len(failures) > 0 {
+		result.Diagnostic("Include loop detected: \n" + strings.Join(failures, "\n"))
+	}
 }
 
 // checkBundleDefinitionsComplete checks that bundle includes, direct packages,
