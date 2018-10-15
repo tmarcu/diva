@@ -42,10 +42,7 @@ func doCloneBundleRepo(bundleInfo pkginfo.BundleInfo) bool {
 	return false
 }
 
-// Bundles clones or pulls the latest clr-bundles definitions to
-// to the desired cache location and checking out the version tag. It also
-// modifies the bundleInfo object by storing the current branch name for future
-// use and cleanup.
+// Bundles clones the latest clr-bundles definitions to the desired cache location
 func Bundles(bundleInfo *pkginfo.BundleInfo) error {
 	var err error
 
@@ -62,6 +59,13 @@ func Bundles(bundleInfo *pkginfo.BundleInfo) error {
 			return err
 		}
 	}
+	return err
+}
+
+// BundleVersion gets and stores the current branch of the repo in the bundleinfo
+// object and then checks out the specified tag for the bundle checks.
+func BundleVersion(bundleInfo *pkginfo.BundleInfo) error {
+	var err error
 
 	// Get the name of the current branch to defer back to
 	bundleInfo.Branch, err = GetCurrentBranch(bundleInfo.BundleCache)

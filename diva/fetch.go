@@ -21,87 +21,117 @@ import (
 	"github.com/clearlinux/diva/pkginfo"
 )
 
-// FetchRepo fetches the RPM repo at the u.URL baseurl to the local cache
-// location
-func FetchRepo(conf *config.Config, u *config.UInfo) error {
-
-	repo, err := pkginfo.NewRepo(conf, u)
-	if err != nil {
-		return err
-	}
-
-	helpers.PrintBegin("fetching repo from %s", repo.URI)
-	err = download.RepoFiles(&repo, u.Update)
-	if err != nil {
-		return err
-	}
-
-	err = pkginfo.ImportAllRPMs(&repo, u.Update)
-	if err != nil {
-		return err
-	}
-
+// DownloadRepo downloads the RPM repo to the local cache location
+func DownloadRepo(conf *config.Config, u *config.UInfo, repo *pkginfo.Repo) {
+	helpers.PrintBegin("fetching RPM repo from %s", repo.URI)
+	err := download.RepoFiles(repo, u.Update)
+	helpers.FailIfErr(err)
 	helpers.PrintComplete("repo cached at %s", repo.RPMCache)
-	return nil
 }
 
-// FetchBundles clones the bundles repository from the config or passed in
-// bundleURL argument and imports the information to the database.
-func FetchBundles(conf *config.Config, u *config.UInfo) error {
+// ImportRepo stores the repo data from the cacheloc to the database
+func ImportRepo(conf *config.Config, u *config.UInfo, repo *pkginfo.Repo) {
+	helpers.PrintBegin("importing repo from %s to database", repo.RPMCache)
+	err := pkginfo.ImportAllRPMs(repo, u.Update)
+	helpers.FailIfErr(err)
+	helpers.PrintComplete("RPM repo imported successfully")
+}
 
-	bundleInfo, err := pkginfo.NewBundleInfo(conf, u)
-	if err != nil {
-		return err
-	}
+// FetchRepo downloads RPMs from the repo.URI location and imports them into
+// the database. This calls both the DownloadRepo and ImportRepo functions
+func FetchRepo(conf *config.Config, u *config.UInfo) {
+	repo, err := pkginfo.NewRepo(conf, u)
+	helpers.FailIfErr(err)
+	DownloadRepo(conf, u, &repo)
+	ImportRepo(conf, u, &repo)
+}
 
-	helpers.PrintBegin("getting bundle definitions")
-	err = download.Bundles(&bundleInfo)
-	if err != nil {
-		return err
-	}
+// DownloadBundles clones the bundle repository
+func DownloadBundles(bundleInfo *pkginfo.BundleInfo) {
+	helpers.PrintBegin("downloading bundle definitions")
+	err := download.Bundles(bundleInfo)
+	helpers.FailIfErr(err)
 	helpers.PrintComplete("bundle repo cached to %s", bundleInfo.BundleCache)
+}
 
-	err = pkginfo.ImportBundleDefinitions(&bundleInfo)
-	if err != nil {
-		return err
-	}
+// ImportBundles creates the bundle definitions, stores the current repo branch
+// to revert back to after importing, and stores the bundle definitions in the
+// database
+func ImportBundles(bundleInfo *pkginfo.BundleInfo) {
+	var err error
+
+	helpers.PrintBegin("importing bundles from %s to database", bundleInfo.BundleCache)
+	// checks out the correct version tag from bundles repository
+	err = download.BundleVersion(bundleInfo)
+	helpers.FailIfErr(err)
+	err = pkginfo.ImportBundleDefinitions(bundleInfo)
+	helpers.FailIfErr(err)
+	helpers.PrintComplete("bundles imported successfully")
 
 	// after fetching from the specified tag, defer back to previous state
 	defer func() {
 		_ = helpers.CheckoutBranch(bundleInfo.BundleCache, bundleInfo.Branch)
 	}()
-
-	return nil
 }
 
-// FetchUpdate downloads manifests from the u.URL server
-func FetchUpdate(conf *config.Config, u *config.UInfo) error {
-	mInfo, err := pkginfo.NewManifestInfo(conf, u)
-	if err != nil {
-		return err
-	}
+// FetchBundles clones the bundles repository from the config or passed in
+// bundleURL argument and imports the information to the database.
+// It calls the DownloadBundles and ImportBundles functions
+func FetchBundles(conf *config.Config, u *config.UInfo) {
+	bundleInfo, err := pkginfo.NewBundleInfo(conf, u)
+	helpers.FailIfErr(err)
 
+	DownloadBundles(&bundleInfo)
+	ImportBundles(&bundleInfo)
+}
+
+// DownloadUpdate downloads the manifests from mInfo UpstreamURL to the
+// minfo.Cacheloc
+func DownloadUpdate(mInfo *pkginfo.ManifestInfo) {
 	helpers.PrintBegin("fetching manifests from %s at version %v", mInfo.UpstreamURL, mInfo.Version)
-	err = download.UpdateContent(&mInfo)
-	if err != nil {
-		return err
-	}
+	err := download.UpdateContent(mInfo)
+	helpers.FailIfErr(err)
 	helpers.PrintComplete("manifests cached at %s", mInfo.CacheLoc)
-	return nil
 }
 
-// FetchUpdateFiles downloads relevant files for u.Ver from u.URL
-func FetchUpdateFiles(conf *config.Config, u *config.UInfo) error {
-	mInfo, err := pkginfo.NewManifestInfo(conf, u)
-	if err != nil {
-		return err
-	}
-
+// DownloadUpdateFiles downloads the manifests files from the upstreamURL to the
+// mInfo.CacheLoc
+func DownloadUpdateFiles(mInfo *pkginfo.ManifestInfo) {
 	helpers.PrintBegin("fetching manifests files from %s at version %v", mInfo.UpstreamURL, mInfo.Version)
-	err = download.UpdateFiles(&mInfo)
-	if err != nil {
-		return err
-	}
-	helpers.PrintComplete("manifests cached at %s/update", mInfo.CacheLoc)
-	return nil
+	err := download.UpdateFiles(mInfo)
+	helpers.FailIfErr(err)
+	helpers.PrintComplete("manifest files cached at %s/update", mInfo.CacheLoc)
+}
+
+// DownloadUpdateAll downloads both the manifest and the manifest files to the
+// cache location
+func DownloadUpdateAll(mInfo *pkginfo.ManifestInfo) {
+	DownloadUpdate(mInfo)
+	DownloadUpdateFiles(mInfo)
+}
+
+// TODO: Add import functions
+
+// FetchUpdate downloads manifests from the u.URL server and TODO: imports them
+// to the database
+func FetchUpdate(conf *config.Config, u *config.UInfo) {
+	mInfo, err := pkginfo.NewManifestInfo(conf, u)
+	helpers.FailIfErr(err)
+	DownloadUpdate(&mInfo)
+}
+
+// FetchUpdateFiles downloads relevant files for u.Ver from u.URL and TODO:
+// stores them to the database
+func FetchUpdateFiles(conf *config.Config, u *config.UInfo) {
+	mInfo, err := pkginfo.NewManifestInfo(conf, u)
+	helpers.FailIfErr(err)
+	DownloadUpdateFiles(&mInfo)
+}
+
+// FetchUpdateAll downloads both manifests and relevant manifest files, then
+// TODO: stores them to the database
+func FetchUpdateAll(conf *config.Config, u *config.UInfo) {
+	mInfo, err := pkginfo.NewManifestInfo(conf, u)
+	helpers.FailIfErr(err)
+	DownloadUpdateAll(&mInfo)
 }

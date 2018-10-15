@@ -127,8 +127,6 @@ func getAllManifests(mInfo pkginfo.ManifestInfo) (map[string]finfo, error) {
 
 // UpdateFiles downloads relevant files for u.Ver from u.URL
 func UpdateFiles(mInfo *pkginfo.ManifestInfo) error {
-
-	helpers.PrintBegin("fetching files from %s at version %v", mInfo.UpstreamURL, mInfo.Version)
 	dlFiles, err := getAllManifests(*mInfo)
 	if err != nil {
 		return err
@@ -167,8 +165,6 @@ func UpdateFiles(mInfo *pkginfo.ManifestInfo) error {
 
 	if len(errChan) > 0 {
 		helpers.PrintComplete("errors downloading %d files", len(errChan))
-	} else {
-		helpers.PrintComplete("files cached at %s", filepath.Join(mInfo.CacheLoc, "update"))
 	}
 	return nil
 }

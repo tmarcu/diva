@@ -67,8 +67,8 @@ type Repo struct {
 
 func getRepoURI(repo *Repo, loc string) error {
 	urls := []string{
-		fmt.Sprintf("%s/%s/%s/%s", repo.UpstreamURL, repo.Version, repo.Name, loc),
-		fmt.Sprintf("%s/releases/%s/%s/%s", repo.UpstreamURL, repo.Version, repo.Name, loc),
+		fmt.Sprintf("%s/%s/%s/%s", repo.URI, repo.Version, repo.Name, loc),
+		fmt.Sprintf("%s/releases/%s/%s/%s", repo.URI, repo.Version, repo.Name, loc),
 	}
 
 	var errs []error
@@ -88,20 +88,24 @@ func (repo *Repo) updateRepo(u *config.UInfo) error {
 	if err != nil {
 		return err
 	}
+
 	if repo.Type == "" {
 		repo.Type = "B"
 	}
+
 	if repo.URI == "" {
-		if repo.Type == "SRPM" {
-			err = getRepoURI(repo, "source/SRPMS")
-			if err != nil {
-				return err
-			}
-		} else {
-			err = getRepoURI(repo, "x86_64/os")
-			if err != nil {
-				return err
-			}
+		repo.URI = repo.UpstreamURL
+	}
+
+	if repo.Type == "SRPM" {
+		err = getRepoURI(repo, "source/SRPMS")
+		if err != nil {
+			return err
+		}
+	} else {
+		err = getRepoURI(repo, "x86_64/os")
+		if err != nil {
+			return err
 		}
 	}
 	if repo.RPMCache == config.DefaultConf().Paths.LocalRPMRepo {

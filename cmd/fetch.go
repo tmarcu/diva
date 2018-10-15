@@ -17,27 +17,12 @@ package cmd
 import (
 	"github.com/clearlinux/diva/diva"
 	"github.com/clearlinux/diva/internal/config"
-	"github.com/clearlinux/diva/internal/helpers"
 
 	"github.com/spf13/cobra"
 )
 
-type allFetchFlags struct {
-	mixName         string
-	version         string
-	latest          bool
-	upstreamURL     string
-	upstreamRepoURL string
-	rpmCache        string
-	binaryRPM       bool
-	sourceRPM       bool
-	bundleURL       string
-	bundleCache     string
-	update          bool
-	recursive       bool
-}
-
-var fetchFlags allFetchFlags
+// the FetchingFlags struct can be found in the config file
+var fetchFlags config.FetchingFlags
 
 var fetchCmd = &cobra.Command{
 	Use:   "fetch",
@@ -48,9 +33,9 @@ var fetchAllCmd = &cobra.Command{
 	Use:   "all [--version <version>] [--bundleurl|--upstreamurl <url>] [--update]",
 	Run:   runFetchAllCmd,
 	Short: "Fetch metadata from <version> or latest available if <version> is not supplied",
-	Long: `Fetch latest bundle definitions, RPM repository, and update manifests from <version>.
-If <version> is not supplied, fetch latest available content. Pass
---upstreamurl to fetch RPMs and update metadata from a location other than the
+	Long: `Fetch RPM repository, bundle definitions, and update manifests from <version>.
+If <version> is not supplied, or --latest is passed, fetch latest available content.
+Pass --upstreamurl to fetch RPMs and update metadata from a location other than the
 configured Upstream URL and --bundleurl to fetch the bundle definitions from a
 location other than default. If --update is passed, the cached Repo data will
 be updated with new information from the upstream url.
@@ -63,9 +48,9 @@ $HOME/clearlinux/data/update/<version>.`,
 }
 
 var fetchBundlesCmd = &cobra.Command{
-	Use:   "bundles [--bundleurl <url>]",
+	Use:   "bundles [--version <version>] [--bundleurl <url>]",
 	Run:   runFetchBundlesCmd,
-	Short: "Fetch bundle definition files",
+	Short: "Fetch bundle definition files from <version> or latest if not passed",
 	Long: `Fetch bundle definition files from https://github.com/clearlinux/clr-bundles or
 <url> if --bundleurl is supplied. Places the bundle definition files in
 $HOME/clearlinux/projects/clr-bundles by default.`,
@@ -107,46 +92,30 @@ func init() {
 
 	rootCmd.AddCommand(fetchCmd)
 
-	fetchCmd.PersistentFlags().StringVarP(&fetchFlags.mixName, "name", "n", "clear", "optional name of data group")
-	fetchCmd.PersistentFlags().StringVarP(&fetchFlags.version, "version", "v", "0", "version from which to pull data")
-	fetchCmd.PersistentFlags().StringVarP(&fetchFlags.upstreamURL, "upstreamurl", "u", "", "URL from which to pull update metadata")
-	fetchCmd.PersistentFlags().BoolVar(&fetchFlags.latest, "latest", false, "get the latest upstream version")
+	fetchCmd.PersistentFlags().StringVarP(&fetchFlags.MixName, "name", "n", "clear", "optional name of data group")
+	fetchCmd.PersistentFlags().StringVarP(&fetchFlags.Version, "version", "v", "0", "version from which to pull data")
+	fetchCmd.PersistentFlags().StringVarP(&fetchFlags.UpstreamURL, "upstreamurl", "u", "", "URL from which to pull update metadata")
+	fetchCmd.PersistentFlags().BoolVar(&fetchFlags.Latest, "latest", false, "get the latest upstream version")
 
-	fetchAllCmd.Flags().StringVarP(&fetchFlags.upstreamRepoURL, "repourl", "m", "", "fully qualified URL from which to pull repodata")
-	fetchAllCmd.Flags().StringVar(&fetchFlags.rpmCache, "rpmcache", "", "path to repo cache destination")
-	fetchAllCmd.Flags().BoolVar(&fetchFlags.binaryRPM, "binary", false, "fetches only binary RPMs")
-	fetchAllCmd.Flags().BoolVar(&fetchFlags.sourceRPM, "source", false, "fetches only SRPMs")
-	fetchAllCmd.Flags().StringVarP(&fetchFlags.bundleURL, "bundleurl", "b", "", "URL from which to pull bundle definitions")
-	fetchAllCmd.Flags().StringVar(&fetchFlags.bundleURL, "bundlecache", "", "path to bundle cache destination")
-	fetchAllCmd.Flags().BoolVar(&fetchFlags.update, "update", false, "update pre-existing Repo data")
-	fetchAllCmd.Flags().BoolVarP(&fetchFlags.recursive, "recursive", "r", false, "recursively fetch all content referenced in update metadata")
+	fetchAllCmd.Flags().StringVarP(&fetchFlags.UpstreamRepoURL, "repourl", "m", "", "fully qualified URL from which to pull repodata")
+	fetchAllCmd.Flags().StringVar(&fetchFlags.RPMCache, "rpmcache", "", "path to repo cache destination")
+	fetchAllCmd.Flags().BoolVar(&fetchFlags.BinaryRPM, "binary", false, "fetches only binary RPMs")
+	fetchAllCmd.Flags().BoolVar(&fetchFlags.SourceRPM, "source", false, "fetches only SRPMs")
+	fetchAllCmd.Flags().StringVarP(&fetchFlags.BundleURL, "bundleurl", "b", "", "URL from which to pull bundle definitions")
+	fetchAllCmd.Flags().StringVar(&fetchFlags.BundleURL, "bundlecache", "", "path to bundle cache destination")
+	fetchAllCmd.Flags().BoolVar(&fetchFlags.Update, "update", false, "update pre-existing Repo data")
+	fetchAllCmd.Flags().BoolVarP(&fetchFlags.Recursive, "recursive", "r", false, "recursively fetch all content referenced in update metadata")
 
-	fetchRepoCmd.Flags().StringVarP(&fetchFlags.upstreamRepoURL, "repourl", "m", "", "fully qualified URL from which to pull repodata")
-	fetchRepoCmd.Flags().StringVar(&fetchFlags.rpmCache, "rpmcache", "", "path to repo cache destination")
-	fetchRepoCmd.Flags().BoolVar(&fetchFlags.update, "update", false, "update data with upstream")
-	fetchRepoCmd.Flags().BoolVar(&fetchFlags.binaryRPM, "binary", false, "fetches only binary RPMs")
-	fetchRepoCmd.Flags().BoolVar(&fetchFlags.sourceRPM, "source", false, "fetches only SRPMs")
+	fetchRepoCmd.Flags().StringVarP(&fetchFlags.UpstreamRepoURL, "repourl", "m", "", "fully qualified URL from which to pull repodata")
+	fetchRepoCmd.Flags().StringVar(&fetchFlags.RPMCache, "rpmcache", "", "path to repo cache destination")
+	fetchRepoCmd.Flags().BoolVar(&fetchFlags.Update, "update", false, "update data with upstream")
+	fetchRepoCmd.Flags().BoolVar(&fetchFlags.BinaryRPM, "binary", false, "fetches only binary RPMs")
+	fetchRepoCmd.Flags().BoolVar(&fetchFlags.SourceRPM, "source", false, "fetches only SRPMs")
 
-	fetchBundlesCmd.Flags().StringVarP(&fetchFlags.bundleURL, "bundleurl", "b", "", "URL from which to pull bundle definitions")
-	fetchBundlesCmd.Flags().StringVar(&fetchFlags.bundleURL, "bundlecache", "", "path to bundle cache destination")
+	fetchBundlesCmd.Flags().StringVarP(&fetchFlags.BundleURL, "bundleurl", "b", "", "URL from which to pull bundle definitions")
+	fetchBundlesCmd.Flags().StringVar(&fetchFlags.BundleURL, "bundlecache", "", "path to bundle cache destination")
 
-	fetchUpdateCmd.Flags().BoolVarP(&fetchFlags.recursive, "recursive", "r", false, "recursively fetch all content referenced in update metadata")
-}
-
-func newUinfo() config.UInfo {
-	u := config.UInfo{
-		Ver:         fetchFlags.version,
-		Latest:      fetchFlags.latest,
-		URL:         fetchFlags.upstreamURL,
-		MixName:     fetchFlags.mixName,
-		Update:      fetchFlags.update,
-		RepoURL:     fetchFlags.upstreamRepoURL,
-		RPMCache:    fetchFlags.rpmCache,
-		BundleURL:   fetchFlags.bundleURL,
-		BundleCache: fetchFlags.bundleCache,
-	}
-	config.UpdateConfigInstance(conf, u)
-	return u
+	fetchUpdateCmd.Flags().BoolVarP(&fetchFlags.Recursive, "recursive", "r", false, "recursively fetch all content referenced in update metadata")
 }
 
 func runFetchAllCmd(cmd *cobra.Command, args []string) {
@@ -156,39 +125,27 @@ func runFetchAllCmd(cmd *cobra.Command, args []string) {
 }
 
 func runFetchRepoCmd(cmd *cobra.Command, args []string) {
-	var err error
-	u := newUinfo()
+	u := config.NewUinfo(fetchFlags, conf)
 
 	// by default download both SRPMs and binary RPMs, however allow the user to
 	// pass either a "binary" or "source" flag to download only one
-	if fetchFlags.binaryRPM || (!fetchFlags.binaryRPM && !fetchFlags.sourceRPM) {
+	if fetchFlags.BinaryRPM || (!fetchFlags.BinaryRPM && !fetchFlags.SourceRPM) {
 		u.RPMType = "B"
-		err = diva.FetchRepo(conf, &u)
-		helpers.FailIfErr(err)
+		diva.FetchRepo(conf, &u)
 	}
 
-	if fetchFlags.sourceRPM || (!fetchFlags.binaryRPM && !fetchFlags.sourceRPM) {
+	if fetchFlags.SourceRPM || (!fetchFlags.BinaryRPM && !fetchFlags.SourceRPM) {
 		u.RPMType = "SRPM"
-		err = diva.FetchRepo(conf, &u)
-		helpers.FailIfErr(err)
+		diva.FetchRepo(conf, &u)
 	}
 }
 
 func runFetchBundlesCmd(cmd *cobra.Command, args []string) {
-	var err error
-	u := newUinfo()
-
-	err = diva.FetchBundles(conf, &u)
-	helpers.FailIfErr(err)
+	u := config.NewUinfo(fetchFlags, conf)
+	diva.FetchBundles(conf, &u)
 }
 
 func runFetchUpdateCmd(cmd *cobra.Command, args []string) {
-	var err error
-	u := newUinfo()
-
-	err = diva.FetchUpdate(conf, &u)
-	helpers.FailIfErr(err)
-
-	err = diva.FetchUpdateFiles(conf, &u)
-	helpers.FailIfErr(err)
+	u := config.NewUinfo(fetchFlags, conf)
+	diva.FetchUpdateAll(conf, &u)
 }

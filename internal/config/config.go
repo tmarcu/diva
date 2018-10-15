@@ -49,6 +49,23 @@ type Config struct {
 	BundleDefsURL string     `toml:"bundles_url"`
 }
 
+// FetchingFlags are the command line flags used by the download, import, and
+// fetch binaries.
+type FetchingFlags struct {
+	MixName         string
+	Version         string
+	Latest          bool
+	UpstreamURL     string
+	UpstreamRepoURL string
+	RPMCache        string
+	BinaryRPM       bool
+	SourceRPM       bool
+	BundleURL       string
+	BundleCache     string
+	Update          bool
+	Recursive       bool
+}
+
 // UInfo contains information used by all commands that is defaulted with
 // config values, and updated with flags and other constraints to create
 // the different data structs.
@@ -91,6 +108,23 @@ func UpdateConfigInstance(conf *Config, u UInfo) {
 	if u.BundleCache != "" {
 		conf.Paths.BundleDefsRepo = u.BundleCache
 	}
+}
+
+// NewUinfo creates a new UInfo object from the FetchingFlags and config instance
+func NewUinfo(flags FetchingFlags, conf *Config) UInfo {
+	u := UInfo{
+		Ver:         flags.Version,
+		Latest:      flags.Latest,
+		URL:         flags.UpstreamURL,
+		MixName:     flags.MixName,
+		Update:      flags.Update,
+		RepoURL:     flags.UpstreamRepoURL,
+		RPMCache:    flags.RPMCache,
+		BundleURL:   flags.BundleURL,
+		BundleCache: flags.BundleCache,
+	}
+	UpdateConfigInstance(conf, u)
+	return u
 }
 
 // DefaultConf is the default, and last fall back for the config object
