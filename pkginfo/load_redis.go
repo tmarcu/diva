@@ -15,10 +15,13 @@
 package pkginfo
 
 import (
+	"bytes"
+	"encoding/gob"
 	"fmt"
 	"strings"
 
 	"github.com/clearlinux/diva/bundle"
+	"github.com/clearlinux/mixer-tools/swupd"
 	"github.com/gomodule/redigo/redis"
 )
 
@@ -242,6 +245,104 @@ func getBundlesRedis(c redis.Conn, bundleInfo *BundleInfo, bundleName string) er
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func getManifestHeader(c redis.Conn, key string) (swupd.ManifestHeader, error) {
+	var err error
+	header := swupd.ManifestHeader{}
+
+	v, err := redis.Bytes(c.Do("GET", key+":Header"))
+	if err != nil {
+		return header, err
+	}
+
+	err = gob.NewDecoder(bytes.NewBuffer(v)).Decode(&header)
+	if err != nil {
+		return header, err
+	}
+
+	return header, nil
+}
+
+func getManifestFilesRedis(c redis.Conn, manifestKey, filesKey string) ([]*swupd.File, error) {
+	fIdxsKey := fmt.Sprintf("%s:%s", manifestKey, filesKey)
+	fIdxs, err := redis.Strings(c.Do("HVALS", fIdxsKey))
+	if err != nil {
+		return []*swupd.File{}, err
+	}
+
+	files := []*swupd.File{}
+	for _, fIdx := range fIdxs {
+		fKey := fmt.Sprintf("%s:%s", manifestKey, fIdx)
+		v, err := redis.Bytes(c.Do("GET", fKey))
+		if err != nil {
+			return []*swupd.File{}, err
+		}
+
+		// decode file and store into swupd file object
+		file := &swupd.File{}
+		err = gob.NewDecoder(bytes.NewBuffer(v)).Decode(file)
+		if err != nil {
+			return []*swupd.File{}, err
+		}
+		files = append(files, file)
+	}
+	return files, nil
+}
+
+func getManifestRedis(c redis.Conn, manifestKey string) (*swupd.Manifest, error) {
+	var err error
+	manifest := swupd.Manifest{}
+
+	manifest.Name, err = redis.String(c.Do("HGET", manifestKey, "Name"))
+	if err != nil {
+		return &manifest, err
+	}
+
+	manifest.Header, err = getManifestHeader(c, manifestKey)
+	if err != nil {
+		return &manifest, err
+	}
+
+	manifest.Files, err = getManifestFilesRedis(c, manifestKey, "Files")
+	if err != nil {
+		return &manifest, err
+	}
+
+	manifest.DeletedFiles, err = getManifestFilesRedis(c, manifestKey, "DeletedFiles")
+	if err != nil {
+		return &manifest, err
+	}
+
+	return &manifest, nil
+}
+
+func getManifestsRedis(c redis.Conn, mInfo *ManifestInfo) error {
+	mIdxs, err := redis.Strings(c.Do("SMEMBERS", fmt.Sprintf("%s%smanifests", mInfo.Name, mInfo.Version)))
+	if err != nil {
+		return err
+	}
+
+	if len(mIdxs) == 0 {
+		return fmt.Errorf(`no manifests found. Try running "diva fetch update -v <version>" to populate database`)
+	}
+
+	momKey := fmt.Sprintf("%s%smanifests:MoM", mInfo.Name, mInfo.Version)
+	mInfo.Mom, err = getManifestRedis(c, momKey)
+	if err != nil {
+		return err
+	}
+
+	for _, mFile := range mInfo.Mom.Files {
+		manifestKey := fmt.Sprintf("%s%smanifests:%s", mInfo.Name, fmt.Sprint(mFile.Version), mFile.Name)
+		m, err := getManifestRedis(c, manifestKey)
+		if err != nil {
+			return err
+		}
+		mInfo.Manifests[m.Name] = m
 	}
 
 	return nil

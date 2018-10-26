@@ -97,7 +97,7 @@ func DownloadUpdate(mInfo *pkginfo.ManifestInfo) {
 // DownloadUpdateFiles downloads the manifests files from the upstreamURL to the
 // mInfo.CacheLoc
 func DownloadUpdateFiles(mInfo *pkginfo.ManifestInfo) {
-	helpers.PrintBegin("fetching manifests files from %s at version %v", mInfo.UpstreamURL, mInfo.Version)
+	helpers.PrintBegin("Downloading manifests files from %s at version %v", mInfo.UpstreamURL, mInfo.Version)
 	err := download.UpdateFiles(mInfo)
 	helpers.FailIfErr(err)
 	helpers.PrintComplete("manifest files cached at %s/update", mInfo.CacheLoc)
@@ -110,7 +110,13 @@ func DownloadUpdateAll(mInfo *pkginfo.ManifestInfo) {
 	DownloadUpdateFiles(mInfo)
 }
 
-// TODO: Add import functions
+// ImportUpdate imports the manifests from the cache location into the database
+func ImportUpdate(mInfo *pkginfo.ManifestInfo) {
+	helpers.PrintBegin("importing manifests from %s to database", mInfo.CacheLoc)
+	err := pkginfo.ImportManifests(mInfo)
+	helpers.FailIfErr(err)
+	helpers.PrintComplete("manifest import complete")
+}
 
 // FetchUpdate downloads manifests from the u.URL server and TODO: imports them
 // to the database
@@ -118,6 +124,7 @@ func FetchUpdate(conf *config.Config, u *config.UInfo) {
 	mInfo, err := pkginfo.NewManifestInfo(conf, u)
 	helpers.FailIfErr(err)
 	DownloadUpdate(&mInfo)
+	ImportUpdate(&mInfo)
 }
 
 // FetchUpdateFiles downloads relevant files for u.Ver from u.URL the update
