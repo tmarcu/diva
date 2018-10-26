@@ -120,18 +120,11 @@ func FetchUpdate(conf *config.Config, u *config.UInfo) {
 	DownloadUpdate(&mInfo)
 }
 
-// FetchUpdateFiles downloads relevant files for u.Ver from u.URL and TODO:
-// stores them to the database
+// FetchUpdateFiles downloads relevant files for u.Ver from u.URL the update
+// files are NOT stored in the database
 func FetchUpdateFiles(conf *config.Config, u *config.UInfo) {
 	mInfo, err := pkginfo.NewManifestInfo(conf, u)
 	helpers.FailIfErr(err)
+	DownloadUpdate(&mInfo)
 	DownloadUpdateFiles(&mInfo)
-}
-
-// FetchUpdateAll downloads both manifests and relevant manifest files, then
-// TODO: stores them to the database
-func FetchUpdateAll(conf *config.Config, u *config.UInfo) {
-	mInfo, err := pkginfo.NewManifestInfo(conf, u)
-	helpers.FailIfErr(err)
-	DownloadUpdateAll(&mInfo)
 }

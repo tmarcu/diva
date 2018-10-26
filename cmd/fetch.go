@@ -78,11 +78,22 @@ under the cache location defined in your configuration or default to
 $HOME/clearlinux/data/update/<version>.`,
 }
 
+var fetchUpdateFilesCmd = &cobra.Command{
+	Use:   "update [--version <version>] [--upstreamurl <url>]",
+	Run:   runFetchUpdateFilesCmd,
+	Short: "Fetch the update files at <version> or latest if not supplied",
+	Long: `Download the update files at <version> from the upstream URL if <version>
+is supplied, otherwise get the latest available. If --upstreamurl is supplied,
+fetch from <url> instead of the configured/default upstream URL. The update data
+is cached under the cache location defined in your configuration or default to
+$HOME/clearlinux/data/update/<version>.`,
+}
 var fetchCmds = []*cobra.Command{
 	fetchAllCmd,
 	fetchBundlesCmd,
 	fetchRepoCmd,
 	fetchUpdateCmd,
+	fetchUpdateFilesCmd,
 }
 
 func init() {
@@ -116,12 +127,15 @@ func init() {
 	fetchBundlesCmd.Flags().StringVar(&fetchFlags.BundleURL, "bundlecache", "", "path to bundle cache destination")
 
 	fetchUpdateCmd.Flags().BoolVarP(&fetchFlags.Recursive, "recursive", "r", false, "recursively fetch all content referenced in update metadata")
+
+	fetchUpdateFilesCmd.Flags().BoolVarP(&fetchFlags.Recursive, "recursive", "r", false, "recursively fetch all content referenced in update metadata")
 }
 
 func runFetchAllCmd(cmd *cobra.Command, args []string) {
 	runFetchRepoCmd(cmd, args)
 	runFetchBundlesCmd(cmd, args)
 	runFetchUpdateCmd(cmd, args)
+	runFetchUpdateFilesCmd(cmd, args)
 }
 
 func runFetchRepoCmd(cmd *cobra.Command, args []string) {
@@ -147,5 +161,10 @@ func runFetchBundlesCmd(cmd *cobra.Command, args []string) {
 
 func runFetchUpdateCmd(cmd *cobra.Command, args []string) {
 	u := config.NewUinfo(fetchFlags, conf)
-	diva.FetchUpdateAll(conf, &u)
+	diva.FetchUpdate(conf, &u)
+}
+
+func runFetchUpdateFilesCmd(cmd *cobra.Command, args []string) {
+	u := config.NewUinfo(fetchFlags, conf)
+	diva.FetchUpdateFiles(conf, &u)
 }
