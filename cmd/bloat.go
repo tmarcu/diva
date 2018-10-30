@@ -115,12 +115,19 @@ func checkSize(name *string, sizeDiff, size float64) (float64, bool) {
 func runBloatCheck(r *diva.Results, manifests *manifestsInfo, args []string) error {
 	var err error
 
+	helpers.PrintBegin("Populating manifest and bundle data for version %s", manifests.minMInfo.Version)
 	err = pkginfo.PopulateBundles(&manifests.minMInfo.BundleInfo, "")
 	if err != nil {
 		return err
 	}
 
-	fromBundleSizes, err := bloatcheck.GetBundleSize(manifests.minMInfo.BundleInfo)
+	err = pkginfo.PopulateManifests(&manifests.minMInfo)
+	if err != nil {
+		return err
+	}
+	helpers.PrintComplete("Finished populating data from database")
+
+	fromBundleSizes, err := bloatcheck.GetBundleSize(manifests.minMInfo)
 	if err != nil {
 		return err
 	}
@@ -134,13 +141,20 @@ func runBloatCheck(r *diva.Results, manifests *manifestsInfo, args []string) err
 		return nil
 	}
 
-	// Need both version of bundle definitions
+	// Need both version of bundle definitions and update content
+	helpers.PrintBegin("Populating manifest and bundle data for version %s", manifests.maxMInfo.Version)
 	err = pkginfo.PopulateBundles(&manifests.maxMInfo.BundleInfo, "")
 	if err != nil {
 		return err
 	}
 
-	toBundleSizes, err := bloatcheck.GetBundleSize(manifests.maxMInfo.BundleInfo)
+	err = pkginfo.PopulateManifests(&manifests.maxMInfo)
+	if err != nil {
+		return err
+	}
+	helpers.PrintComplete("Finished populating data from database")
+
+	toBundleSizes, err := bloatcheck.GetBundleSize(manifests.maxMInfo)
 	if err != nil {
 		return err
 	}
