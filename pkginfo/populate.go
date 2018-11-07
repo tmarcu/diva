@@ -15,6 +15,7 @@
 package pkginfo
 
 import (
+	"github.com/clearlinux/diva/internal/helpers"
 	"github.com/gomodule/redigo/redis"
 )
 
@@ -44,6 +45,32 @@ func PopulateBundles(bundleInfo *BundleInfo, bundleName string) error {
 	}()
 
 	return getBundlesRedis(c, bundleInfo, bundleName)
+}
+
+// PopulateRepoFromBundles populates a repo object with the rpms from the
+// bundle packages
+func PopulateRepoFromBundles(bundleInfo *BundleInfo, repo *Repo) error {
+	var bundleRPMs map[string]bool
+	var err error
+
+	err = PopulateBundles(bundleInfo, "")
+	if err != nil {
+		return err
+	}
+
+	bundleRPMs, err = bundleInfo.BundleDefinitions.GetAllPackages("")
+	if err != nil {
+		return err
+	}
+	// iterate bundle packages, get the rpm from the database, and append it to
+	// the repo packages slice
+	for pkg := range bundleRPMs {
+		rpm, err := GetRPM(repo, pkg)
+		helpers.FailIfErr(err)
+		repo.Packages = append(repo.Packages, rpm)
+	}
+
+	return nil
 }
 
 // PopulateManifests queries the database for manifest information and stores
