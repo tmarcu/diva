@@ -36,7 +36,7 @@ func getAllManifestFiles(mInfo pkginfo.ManifestInfo) (map[string]finfo, error) {
 	dlFiles := make(map[string]finfo)
 	baseCache := filepath.Join(mInfo.CacheLoc, "update")
 
-	mom, err := GetMom(mInfo)
+	mom, err := GetMom(&mInfo)
 	if err != nil {
 		return nil, err
 	}

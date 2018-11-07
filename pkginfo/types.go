@@ -210,6 +210,7 @@ type ManifestInfo struct {
 	BundleInfo
 	UintVer   uint
 	MinVer    uint
+	Mom       *swupd.Manifest
 	Manifests []*swupd.Manifest
 }
 

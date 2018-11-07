@@ -44,7 +44,7 @@ func GetManifest(baseURL string, version string, component, outF string) error {
 }
 
 // GetMom returns the downloaded and parsed swupd.manifest mom object
-func GetMom(mInfo pkginfo.ManifestInfo) (*swupd.Manifest, error) {
+func GetMom(mInfo *pkginfo.ManifestInfo) (*swupd.Manifest, error) {
 	outMoM := filepath.Join(filepath.Join(mInfo.CacheLoc, "update"), mInfo.Version, "Manifest.MoM")
 	err := GetManifest(mInfo.UpstreamURL, mInfo.Version, "MoM", outMoM)
 	if err != nil {
@@ -53,28 +53,19 @@ func GetMom(mInfo pkginfo.ManifestInfo) (*swupd.Manifest, error) {
 	return swupd.ParseManifestFile(outMoM)
 }
 
-// UpdateContent downloads all manifest from the MOM file
+// UpdateContent downloads all manifests from the MOM file
 func UpdateContent(mInfo *pkginfo.ManifestInfo) error {
-	var err error
-
+	mom, err := GetMom(mInfo)
+	if err != nil {
+		return err
+	}
 	baseCache := filepath.Join(mInfo.CacheLoc, "update")
-	outMoM := filepath.Join(baseCache, mInfo.Version, "Manifest.MoM")
-	err = GetManifest(mInfo.UpstreamURL, mInfo.Version, "MoM", outMoM)
-	if err != nil {
-		return err
-	}
-	mom, err := swupd.ParseManifestFile(outMoM)
-	if err != nil {
-		return err
-	}
 
+	// iterate mom files and download all manifests to cache location based on ver
 	for i := range mom.Files {
-		ver := uint(mom.Files[i].Version)
-		if ver < mInfo.MinVer {
-			continue
-		}
-		outMan := filepath.Join(baseCache, fmt.Sprint(ver), "Manifest."+mom.Files[i].Name)
-		err := GetManifest(mInfo.UpstreamURL, mInfo.Version, mom.Files[i].Name, outMan)
+		ver := fmt.Sprint(mom.Files[i].Version)
+		outMan := filepath.Join(baseCache, ver, "Manifest."+mom.Files[i].Name)
+		err := GetManifest(mInfo.UpstreamURL, ver, mom.Files[i].Name, outMan)
 		if err != nil {
 			return err
 		}
