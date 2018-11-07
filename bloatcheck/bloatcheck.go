@@ -99,6 +99,9 @@ func getSizes(bundleInfo pkginfo.BundleInfo, m *swupd.Manifest, mom *swupd.Manif
 // GetBundleSize gets the full size of all bundles in a given version
 func GetBundleSize(bundleInfo pkginfo.BundleInfo) (map[string]int64, error) {
 	manifests, err := getManifests(bundleInfo)
+	if err != nil {
+		return nil, err
+	}
 
 	var wg sync.WaitGroup
 	bundleWorkers := len(manifests)
