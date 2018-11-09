@@ -60,6 +60,7 @@ type FetchingFlags struct {
 	RPMCache        string
 	BinaryRPM       bool
 	SourceRPM       bool
+	DebugRPM        bool
 	BundleURL       string
 	BundleCache     string
 	Update          bool

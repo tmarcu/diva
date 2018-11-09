@@ -109,8 +109,9 @@ func init() {
 
 	importRepoCmd.Flags().StringVarP(&importFlags.UpstreamRepoURL, "repourl", "m", "", "fully qualified URL from which to pull repodata")
 	importRepoCmd.Flags().StringVar(&importFlags.RPMCache, "rpmcache", "", "path to repo cache destination")
-	importRepoCmd.Flags().BoolVar(&importFlags.BinaryRPM, "binary", false, "fetches only binary RPMs")
-	importRepoCmd.Flags().BoolVar(&importFlags.SourceRPM, "source", false, "fetches only SRPMs")
+	importRepoCmd.Flags().BoolVar(&importFlags.BinaryRPM, "binary", false, "imports binary RPMs")
+	importRepoCmd.Flags().BoolVar(&importFlags.SourceRPM, "source", false, "imports SRPMs")
+	importRepoCmd.Flags().BoolVar(&importFlags.DebugRPM, "debuginfo", false, "imports debug RPMs")
 
 	importBundlesCmd.Flags().StringVarP(&importFlags.BundleURL, "bundleurl", "b", "", "URL from which to pull bundle definitions")
 	importBundlesCmd.Flags().StringVar(&importFlags.BundleURL, "bundlecache", "", "path to bundle cache destination")
@@ -127,16 +128,26 @@ func runImportAllCmd(cmd *cobra.Command, args []string) {
 func runImportRepoCmd(cmd *cobra.Command, args []string) {
 	u := config.NewUinfo(importFlags, conf)
 
-	// by default import both SRPMs and binary RPMs, however allow the user to
-	// pass either a "binary" or "source" flag to import only one
-	if importFlags.BinaryRPM || (!importFlags.BinaryRPM && !importFlags.SourceRPM) {
+	// by default import both SRPMs and binary RPMs if no specific rpm option is
+	// passed. However, users can pass --source, --binary, and/or --debuginfo to
+	// choose a specific repo to import (with the ability to do more than one)
+	noFlags := !fetchFlags.BinaryRPM && !fetchFlags.SourceRPM && !fetchFlags.DebugRPM
+	if importFlags.BinaryRPM || noFlags {
 		u.RPMType = "B"
 		repo, err := pkginfo.NewRepo(conf, &u)
 		helpers.FailIfErr(err)
 		diva.ImportRepo(conf, &u, &repo)
 	}
-	if importFlags.SourceRPM || (!importFlags.BinaryRPM && !importFlags.SourceRPM) {
+
+	if importFlags.SourceRPM || noFlags {
 		u.RPMType = "SRPM"
+		repo, err := pkginfo.NewRepo(conf, &u)
+		helpers.FailIfErr(err)
+		diva.ImportRepo(conf, &u, &repo)
+	}
+
+	if importFlags.DebugRPM {
+		u.RPMType = "debug"
 		repo, err := pkginfo.NewRepo(conf, &u)
 		helpers.FailIfErr(err)
 		diva.ImportRepo(conf, &u, &repo)

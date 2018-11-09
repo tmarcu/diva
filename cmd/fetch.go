@@ -120,8 +120,9 @@ func init() {
 	fetchRepoCmd.Flags().StringVarP(&fetchFlags.UpstreamRepoURL, "repourl", "m", "", "fully qualified URL from which to pull repodata")
 	fetchRepoCmd.Flags().StringVar(&fetchFlags.RPMCache, "rpmcache", "", "path to repo cache destination")
 	fetchRepoCmd.Flags().BoolVar(&fetchFlags.Update, "update", false, "update data with upstream")
-	fetchRepoCmd.Flags().BoolVar(&fetchFlags.BinaryRPM, "binary", false, "fetches only binary RPMs")
-	fetchRepoCmd.Flags().BoolVar(&fetchFlags.SourceRPM, "source", false, "fetches only SRPMs")
+	fetchRepoCmd.Flags().BoolVar(&fetchFlags.BinaryRPM, "binary", false, "fetches binary RPMs")
+	fetchRepoCmd.Flags().BoolVar(&fetchFlags.SourceRPM, "source", false, "fetches SRPMs")
+	fetchRepoCmd.Flags().BoolVar(&fetchFlags.DebugRPM, "debuginfo", false, "fetches debuginfo RPMs")
 
 	fetchBundlesCmd.Flags().StringVarP(&fetchFlags.BundleURL, "bundleurl", "b", "", "URL from which to pull bundle definitions")
 	fetchBundlesCmd.Flags().StringVar(&fetchFlags.BundleURL, "bundlecache", "", "path to bundle cache destination")
@@ -141,17 +142,25 @@ func runFetchAllCmd(cmd *cobra.Command, args []string) {
 func runFetchRepoCmd(cmd *cobra.Command, args []string) {
 	u := config.NewUinfo(fetchFlags, conf)
 
-	// by default download both SRPMs and binary RPMs, however allow the user to
-	// pass either a "binary" or "source" flag to download only one
-	if fetchFlags.BinaryRPM || (!fetchFlags.BinaryRPM && !fetchFlags.SourceRPM) {
+	// by default fetch both SRPMs and binary RPMs if no specific rpm option is
+	// passed. However, users can pass --source, --binary, and/or --debuginfo to
+	// choose a specific repo to fetch (with the ability to do more than one)
+	noFlags := !fetchFlags.BinaryRPM && !fetchFlags.SourceRPM && !fetchFlags.DebugRPM
+	if fetchFlags.BinaryRPM || noFlags {
 		u.RPMType = "B"
 		diva.FetchRepo(conf, &u)
 	}
 
-	if fetchFlags.SourceRPM || (!fetchFlags.BinaryRPM && !fetchFlags.SourceRPM) {
+	if fetchFlags.SourceRPM || noFlags {
 		u.RPMType = "SRPM"
 		diva.FetchRepo(conf, &u)
 	}
+
+	if fetchFlags.DebugRPM {
+		u.RPMType = "debug"
+		diva.FetchRepo(conf, &u)
+	}
+
 }
 
 func runFetchBundlesCmd(cmd *cobra.Command, args []string) {

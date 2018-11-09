@@ -122,8 +122,9 @@ func init() {
 	downloadRepoCmd.Flags().StringVarP(&downloadFlags.UpstreamRepoURL, "repourl", "m", "", "fully qualified URL from which to pull repodata")
 	downloadRepoCmd.Flags().StringVar(&downloadFlags.RPMCache, "rpmcache", "", "path to repo cache destination")
 	downloadRepoCmd.Flags().BoolVar(&downloadFlags.Update, "update", false, "update pre-existing Repo data")
-	downloadRepoCmd.Flags().BoolVar(&downloadFlags.BinaryRPM, "binary", false, "fetches only binary RPMs")
-	downloadRepoCmd.Flags().BoolVar(&downloadFlags.SourceRPM, "source", false, "fetches only SRPMs")
+	downloadRepoCmd.Flags().BoolVar(&downloadFlags.BinaryRPM, "binary", false, "downloads binary RPMs")
+	downloadRepoCmd.Flags().BoolVar(&downloadFlags.SourceRPM, "source", false, "downloads SRPMs")
+	downloadRepoCmd.Flags().BoolVar(&downloadFlags.DebugRPM, "debuginfo", false, "downloads debug RPMs")
 
 	downloadBundlesCmd.Flags().StringVarP(&downloadFlags.BundleURL, "bundleurl", "b", "", "URL from which to pull bundle definitions")
 	downloadBundlesCmd.Flags().StringVar(&downloadFlags.BundleURL, "bundlecache", "", "path to bundle cache destination")
@@ -143,17 +144,26 @@ func runDownloadAllCmd(cmd *cobra.Command, args []string) {
 func runDownloadRepoCmd(cmd *cobra.Command, args []string) {
 	u := config.NewUinfo(downloadFlags, conf)
 
-	// by default download both SRPMs and binary RPMs, however allow the user to
-	// pass either a "binary" or "source" flag to download only one
-	if downloadFlags.BinaryRPM || (!downloadFlags.BinaryRPM && !downloadFlags.SourceRPM) {
+	// by default download both SRPMs and binary RPMs if no specific rpm option is
+	// passed. However, users can pass --source, --binary, and/or --debuginfo to
+	// choose a specific repo to download (with the ability to do more than one)
+	noFlags := !fetchFlags.BinaryRPM && !fetchFlags.SourceRPM && !fetchFlags.DebugRPM
+	if downloadFlags.BinaryRPM || noFlags {
 		u.RPMType = "B"
 		repo, err := pkginfo.NewRepo(conf, &u)
 		helpers.FailIfErr(err)
 		diva.DownloadRepo(conf, &u, &repo)
 	}
 
-	if downloadFlags.SourceRPM || (!downloadFlags.BinaryRPM && !downloadFlags.SourceRPM) {
+	if downloadFlags.SourceRPM || noFlags {
 		u.RPMType = "SRPM"
+		repo, err := pkginfo.NewRepo(conf, &u)
+		helpers.FailIfErr(err)
+		diva.DownloadRepo(conf, &u, &repo)
+	}
+
+	if downloadFlags.DebugRPM {
+		u.RPMType = "debug"
 		repo, err := pkginfo.NewRepo(conf, &u)
 		helpers.FailIfErr(err)
 		diva.DownloadRepo(conf, &u, &repo)
