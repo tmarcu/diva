@@ -26,6 +26,7 @@ func init() {
 	rootCmd.AddCommand(checkCmd)
 	checkCmd.AddCommand(bloatCheckCmd)
 	checkCmd.AddCommand(chirpCmd)
+	checkCmd.AddCommand(debuginfoCmd)
 	checkCmd.AddCommand(pyDepsCmd)
 	checkCmd.AddCommand(ucCmd)
 	checkCmd.AddCommand(verifyBundlesCmd)
