@@ -119,6 +119,7 @@ func NewUinfo(flags FetchingFlags, conf *Config) UInfo {
 		MixName:     flags.MixName,
 		Update:      flags.Update,
 		RepoURL:     flags.UpstreamRepoURL,
+		Recursive:   flags.Recursive,
 		RPMCache:    flags.RPMCache,
 		BundleURL:   flags.BundleURL,
 		BundleCache: flags.BundleCache,
